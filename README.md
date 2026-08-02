@@ -12,8 +12,10 @@ There are no public workspaces, public URLs, or shared tabs.
 
 | Component | Version | Source |
 | --- | ---: | --- |
-| WordPress plugin | 0.4.18 (live on `controll.co.za`) | `wordpress-plugin/linkflow-dashboard/` |
-| Windows desktop app | 0.1.7 | `linkflow-dashboard/src-tauri/` |
+| WordPress plugin | 0.4.19 (live on `controll.co.za`) | `wordpress-plugin/linkflow-dashboard/` |
+| Windows desktop app | 0.1.8 | `linkflow-dashboard/src-tauri/` |
+
+Source is hosted on GitHub: [`vincentrathbone-web/linkflow-dashboard`](https://github.com/vincentrathbone-web/linkflow-dashboard) (private repo).
 
 The desktop app authenticates once with the user's normal WordPress credentials. The plugin exchanges them for a LinkFlow-only device token. The raw token is stored in Windows Credential Manager; WordPress stores only its SHA-256 hash.
 
@@ -42,6 +44,10 @@ An optional bubble on the Dashboard shows a daily motivational quote or Bible ve
 
 - **Quote:** [ZenQuotes](https://zenquotes.io/), no key required.
 - **Verse:** the official YouVersion Verse of the Day, if a free YouVersion Platform app key is set under **Settings → LinkFlow** in wp-admin; otherwise falls back automatically to a curated reference list resolved against [bible-api.com](https://bible-api.com/) (also no key required).
+
+## In-app updates
+
+The desktop client checks for updates via `@tauri-apps/plugin-updater` against `https://controll.co.za/wp-json/linkflow/v1/desktop/latest-release`, which the WordPress plugin backs with a server-side, authenticated proxy to the (private) GitHub Releases API — see `LinkFlow_Updates` in the plugin and `UpdateBanner.tsx` on the client. The GitHub token lives only in a WordPress option (Settings → LinkFlow), never on the client. Publishing a new release therefore requires the release's `-setup.exe` and matching `-setup.exe.sig` (signed with the key in `~/.linkflow-updater-keys/` on this workstation) to exist as GitHub Release assets. See `HANDOVER.md` for exact verification status.
 
 ## Build and package
 

@@ -1,18 +1,35 @@
 # LinkFlow handover
 
-Last updated: 2026-08-01
+Last updated: 2026-08-02
 
 ## Status
 
-- WordPress plugin: **0.4.18**, deployed and active on `controll.co.za` (installed via `wp plugin install ... --force` over SSH; confirmed live by checking the `/wp-json/linkflow/v1` route list, which shows `/daily-inspiration` registered with no PHP errors).
-- Tauri desktop app: **0.1.7**, both installers built (`LinkFlow_0.1.7_x64-setup.exe`, `LinkFlow_0.1.7_x64_en-US.msi`) and the NSIS installer delivered to the user. Not silently auto-installed anywhere — per-machine install mode requires the user to run it themselves with UAC approval.
-- Compatible pairing: desktop **0.1.7** pairs with plugin **0.4.18**, both live/delivered as of this writing. The Daily Inspiration bubble needs plugin 0.4.18+ for live data (it degrades gracefully to "unavailable" against older plugin versions that lack the endpoint). Desktop **0.1.3 or later** requires plugin **0.4.9 or later** generally. The REST contract dates to plugin 0.4.5, so a site already running 0.4.5-0.4.8 still responds correctly, but no package before 0.4.9 should be deployed: each has a known install or activation defect on Linux hosts.
-- YouVersion app key for the real Verse of the Day: registered (app "LinkFlow Dashboard", non-commercial, 2026-08-01) but **not yet entered** in Settings → LinkFlow on the live site — the bubble's verse mode is currently serving the `bible-api.com` fallback, not the real YouVersion pick.
+- WordPress plugin: **0.4.19** deployed and active on `controll.co.za` (installed via `wp plugin install ... --force --activate` over SSH; confirmed via `wp plugin list` and the live REST route list, which shows `/desktop/latest-release` and `/desktop/latest-release/download` registered with no errors). This was a packaging/docs-only bump — no schema change, no new functionality beyond what 0.4.18 already had.
+- Tauri desktop app: **0.1.8** built locally (`LinkFlow_0.1.8_x64-setup.exe`, `LinkFlow_0.1.8_x64_en-US.msi` under `src-tauri/target/x86_64-pc-windows-msvc/release/bundle/`), adding the Dashboard "Sort" mode. **Not yet signed** — these particular build artifacts have no matching `.sig` file, so the in-app updater cannot serve them as-is (see "In-app update feature" below).
+- Compatible pairing: desktop **0.1.8** pairs with plugin **0.4.18+**. The Daily Inspiration bubble needs plugin 0.4.18+ for live data (it degrades gracefully to "unavailable" against older plugin versions that lack the endpoint). Desktop **0.1.3 or later** requires plugin **0.4.9 or later** generally. The REST contract dates to plugin 0.4.5, so a site already running 0.4.5-0.4.8 still responds correctly, but no package before 0.4.9 should be deployed: each has a known install or activation defect on Linux hosts.
+- YouVersion app key for the real Verse of the Day: registered (app "LinkFlow Dashboard", non-commercial, 2026-08-01) but **not yet confirmed entered** in Settings → LinkFlow on the live site — treat the bubble's verse mode as still possibly serving the `bible-api.com` fallback until checked.
+- **GitHub repository:** the project is now uploaded — `https://github.com/vincentrathbone-web/linkflow-dashboard` (private), `origin` on `master`.
+- **In-app update feature:** built, not yet verified end-to-end live. See "In-app update feature" section below for exact status and what's still needed.
 - Primary client: native Windows app
 - Cloud host: `https://controll.co.za`
 - REST namespace: `/wp-json/linkflow/v1/`
 - Access model: registered WordPress users only; all workspaces are private and user-scoped
 - SSH access to the production host is configured locally as the `linkflow` alias (`~/.ssh/config`, key `~/.ssh/linkflow_ed25519`, `rs60.cphost.co.za:22000`, user `controllco`). WP-CLI is available on the server (`wp` on PATH).
+
+## In-app update feature
+
+Three pieces, all already coded (landed in commit `011cc12`, predating this handover's last accurate update — this file simply hadn't caught up):
+
+1. **Desktop update check/install** — [`UpdateBanner.tsx`](linkflow-dashboard/src/components/UpdateBanner.tsx) calls `@tauri-apps/plugin-updater`'s `check()` on load; if an update is available it shows a pill banner, and clicking it calls `downloadAndInstall()` then relaunches via `@tauri-apps/plugin-process`.
+2. **Updater config** — [`tauri.conf.json`](linkflow-dashboard/src-tauri/tauri.conf.json) `plugins.updater` points at `https://controll.co.za/wp-json/linkflow/v1/desktop/latest-release?current_version={{current_version}}` and carries the public minisign key.
+3. **WordPress GitHub proxy** — [`class-linkflow-updates.php`](wordpress-plugin/linkflow-dashboard/includes/class-linkflow-updates.php) exposes `GET /desktop/latest-release` and `GET /desktop/latest-release/download`, both public/unauthenticated (as the Tauri updater plugin requires), but internally calls the GitHub Releases API with a token so a *private* GitHub repo's release assets are reachable. The token is configured via a **Settings → LinkFlow** wp-admin field (`linkflow_github_release_token`, a fine-grained PAT scoped to this repo with Contents: Read-only) — never sent to the client, never in a file.
+
+**What's still needed before this can be considered verified:**
+
+- The signing keypair for the updater lives locally at `~/.linkflow-updater-keys/linkflow-updater.key` (+ `.pub`) — confirmed to match the pubkey embedded in `tauri.conf.json`. It is an **encrypted** minisign key (`rsign encrypted secret key`), so producing a signed build requires `TAURI_SIGNING_PRIVATE_KEY` + `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` env vars at build time. The existing 0.1.7/0.1.8 installers in `target/.../bundle/` were built *without* those set, so no `.sig` files exist yet for either.
+- A GitHub Release with both the signed `-setup.exe` and its `-setup.exe.sig` needs to exist on `vincentrathbone-web/linkflow-dashboard` for `check_for_update()` to have anything to return (it 204s if either asset is missing).
+- The GitHub PAT needs to be entered into Settings → LinkFlow on the live site (a credential, so this is a manual step for the site owner — not something automated on their behalf).
+- Once both of the above are in place, a real desktop client pointed at an *older* version number needs to confirm it sees the banner, downloads, and installs successfully.
 
 ## Repository layout
 
@@ -120,6 +137,11 @@ supported pairing is in Status above.
 
 ## Architectural decisions
 
+### 2026-08-02
+
+- Uploaded the project to GitHub (`vincentrathbone-web/linkflow-dashboard`, private) as the source of truth for releases, and built the in-app updater on top of it: the desktop client uses `@tauri-apps/plugin-updater` against a WordPress-hosted proxy endpoint rather than pointing at GitHub directly, specifically because the repo is private and Tauri's updater plugin has no way to authenticate its own request. The WordPress plugin holds the one GitHub token server-side and re-exposes two plain unauthenticated endpoints shaped exactly the way the updater plugin expects; the token never reaches the client. This establishes the pattern for any future "check GitHub for the latest release" need from the desktop app.
+- Added a Dashboard "Sort" mode (desktop 0.1.8) reusing the onboarding wizard's `SortBoard` component for ordinary day-to-day re-sorting, not just first-run setup — including making section/column order itself draggable, which onboarding never needed. `SortBoard`'s callback signature grew a third (ordered section ids) argument; existing callers are backward compatible since they simply don't read it.
+
 ### 2026-08-01
 
 - Clarified the intended synchronization model: the desktop app is the primary, authoritative client, and its 800 ms-debounced `POST /workspace` on every change is the real-time path — that write must always succeed promptly, it is not best-effort. The server's role is recovery/device-switch: if a user moves to another device or the hosted web page, they should see the last-saved state, not start over. A single startup `GET` satisfies that role; continuous downward polling or push is explicitly *not* required and should not be added unless a concrete need for true multi-device concurrent editing emerges.
@@ -161,8 +183,12 @@ supported pairing is in Status above.
 
 ## Next checks
 
-- Set the YouVersion app key under **Settings → LinkFlow** in wp-admin (app "LinkFlow Dashboard", registered 2026-08-01, non-commercial) so the Daily Inspiration bubble's verse mode uses the real YouVersion Verse of the Day instead of the `bible-api.com` fallback. Plugin 0.4.18 is already live, so this is now just a wp-admin form submission, nothing further to deploy.
-- Confirm the 0.1.7 desktop installer has actually been run/installed on the machine(s) that need it (delivered to the user as a file; install is a manual, UAC-elevated step, not something this session can verify happened).
+- **Enter the GitHub PAT** under Settings → LinkFlow on the live site once the new plugin package is deployed — a fine-grained token scoped to `vincentrathbone-web/linkflow-dashboard` with Contents: Read-only. Manual step for the site owner; credentials are never entered on their behalf.
+- **Produce a signed 0.1.8 build** (`TAURI_SIGNING_PRIVATE_KEY` + `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` from `~/.linkflow-updater-keys/`) and publish it as a GitHub Release with both the `-setup.exe` and `-setup.exe.sig` assets, so the update proxy has something real to serve.
+- Then run the actual end-to-end update test: an older desktop client should see the `UpdateBanner`, download, and install successfully.
+- Set the YouVersion app key under **Settings → LinkFlow** in wp-admin (app "LinkFlow Dashboard", registered 2026-08-01, non-commercial) so the Daily Inspiration bubble's verse mode uses the real YouVersion Verse of the Day instead of the `bible-api.com` fallback — status unconfirmed, re-check live.
+- Confirm the 0.1.8 desktop installer has actually been run/installed on the machine(s) that need it (delivered to the user as a file; install is a manual, UAC-elevated step, not something this session can verify happened).
 - Add a user-facing device-management screen for listing and revoking desktop tokens (`GET/DELETE /desktop/devices` already exist server-side; no UI consumes them yet).
 - Consider whether the temporary `SyncDiagnosticsPanel` can now be hidden behind a support-mode flag rather than always-visible, now that the write path, credential persistence, and hosted-page configuration bugs are all resolved and verified live.
 - No further sync-architecture work is currently planned; see the 2026-08-01 architectural decision above for why continuous polling is intentionally out of scope.
+- Virtual pet cat feature: lowest priority. Four cat/kitten image assets are sitting untracked in the repo root (not yet moved into a proper assets folder or wired into any component); the user says the feature code is "basically ready to port in" from elsewhere.

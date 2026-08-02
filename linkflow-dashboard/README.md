@@ -2,7 +2,9 @@
 
 LinkFlow is a private, Windows desktop link workspace. Its React interface is packaged with Tauri and connects directly to the LinkFlow WordPress plugin API; it never renders the WordPress theme or Elementor.
 
-Current desktop version: **0.1.7**. Requires WordPress plugin **0.4.13 or later** for Google sign-in and desktop-initiated sign-out to work (0.4.18 is the paired release and is deployed to production).
+Current desktop version: **0.1.8**. Requires WordPress plugin **0.4.13 or later** for Google sign-in and desktop-initiated sign-out to work (0.4.18+ is the paired release; see `HANDOVER.md` for the exact live version).
+
+The app checks for updates on launch via `@tauri-apps/plugin-updater` (see `UpdateBanner.tsx`), against a WordPress-hosted proxy in front of GitHub Releases — see the plugin README's "In-app updates" section for the full path and current verification status.
 
 The temporary sync diagnostics console is no longer shown on top of the app by default — open it from the "Sync log" link in the top nav, which opens it in its own window/tab instead.
 
@@ -47,6 +49,11 @@ For the MSVC x64 build used by this project, Tauri places the installers under `
 
 This is the canonical desktop changelog. The WordPress plugin keeps its own in
 [`wordpress-plugin/linkflow-dashboard/README.md`](../wordpress-plugin/linkflow-dashboard/README.md).
+
+### Version 0.1.8 (2026-08-02, with plugin 0.4.18+)
+
+- Added a Dashboard "Sort" mode: a "Sort" link next to "+ Add Link" in each section header opens the same `SortBoard` used during onboarding/bulk-import, pre-populated with the section's current links, so links can be re-sorted or moved between sections at any time (not just on first run). Sections/columns themselves are now drag-and-drop reorderable too, using the same overlay/snapshot/velocity-tilt/WAAPI-landing technique as link cards, with the "Unsorted" bucket pinned first. `SortBoard`'s completion callback grew an optional third argument (ordered section ids); existing callers are unaffected.
+- The in-app updater (`UpdateBanner.tsx`, `@tauri-apps/plugin-updater`) and the WordPress-hosted GitHub release proxy landed earlier (see plugin README) but are still awaiting a signed release asset for a full live test — this build itself was produced without the updater signing key set, so it has no `.sig` counterpart yet.
 
 ### Version 0.1.7 (2026-08-01, with plugin 0.4.18)
 

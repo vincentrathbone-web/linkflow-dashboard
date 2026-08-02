@@ -1,6 +1,6 @@
 # LinkFlow Dashboard WordPress Plugin
 
-Current version: **0.4.18**.
+Current version: **0.4.19**, live on `controll.co.za`.
 
 LinkFlow provides a closed, authenticated cloud workspace for the hosted React interface and Windows desktop client. Each WordPress user has an isolated workspace and up to 20 recoverable revisions. There are no public or shared workspace endpoints.
 
@@ -42,6 +42,17 @@ Workspace writes use optimistic concurrency through `X-LinkFlow-Version`. URLs a
 
 The YouVersion app key is a free, non-commercial developer key from [platform.youversion.com](https://platform.youversion.com) (`LinkFlow Dashboard` app, registered 2026-08-01). It's stored in the `linkflow_youversion_app_key` WordPress option via the new Settings page — never in a file, never sent to the client.
 
+## In-app updates
+
+`LinkFlow_Updates` (`includes/class-linkflow-updates.php`) proxies GitHub Releases for the desktop client's `@tauri-apps/plugin-updater` check, because the source repo (`vincentrathbone-web/linkflow-dashboard`) is private and Tauri's updater plugin sends a plain unauthenticated request. Two public endpoints do the authenticated GitHub calls server-side:
+
+- `GET /desktop/latest-release?current_version=X.Y.Z` — 204 if already current, otherwise a version/notes/platforms manifest pointing at the download endpoint, including the release's minisign signature fetched from the matching `-setup.exe.sig` asset.
+- `GET /desktop/latest-release/download?asset=<name>` — streams a single release asset's bytes, authenticated with the stored token.
+
+The GitHub token is a fine-grained PAT (Contents: Read-only, scoped to just this repo) stored in the `linkflow_github_release_token` WordPress option via **Settings → LinkFlow**, entered directly in wp-admin — never in a file, never sent to the client. The latest-release lookup is cached in a transient for 30 minutes.
+
+For this proxy to return anything other than 204, a GitHub Release must exist with both a signed `-setup.exe` and its `-setup.exe.sig`. See `HANDOVER.md` for current status of the signing key and whether a real release has been published yet.
+
 ## Packaging
 
 Run `./package.ps1` from the workspace root. It reads the slug/version from this plugin's `package.json`, bumps the patch version, builds the Vite assets, and creates one validated versioned install archive under `dist/`: `linkflow-dashboard-vX.Y.Z.zip`. The ZIP filename carries the release version, but the only internal root remains `linkflow-dashboard/`.
@@ -51,6 +62,10 @@ Run `./package.ps1` from the workspace root. It reads the slug/version from this
 This is the canonical plugin changelog. The desktop client keeps its own in
 [`linkflow-dashboard/README.md`](../../linkflow-dashboard/README.md); where a plugin release shipped
 alongside a desktop release, the pairing is noted here.
+
+### 2026-08-02
+
+- **0.4.19:** Packaging/docs bump only — no PHP changes. Deployed to production to confirm the GitHub-release-proxy routes (`LinkFlow_Updates`, first shipped in 0.4.18/0.1.7-era work but not yet reflected in documentation until now) are live: `/desktop/latest-release` and `/desktop/latest-release/download`, both confirmed registered via the live REST route list post-deploy.
 
 ### 2026-08-01
 
