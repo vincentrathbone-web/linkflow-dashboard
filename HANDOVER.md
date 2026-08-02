@@ -219,4 +219,3 @@ supported pairing is in Status above.
 - No further sync-architecture work is currently planned; see the 2026-08-01 architectural decision above for why continuous polling is intentionally out of scope.
 - The in-app update feature is now fully verified end-to-end (see above) — no further work needed there unless a real feature release surfaces a new issue. Remember the 30-minute release-transient cache when testing future releases.
 - Cat companion is ported and browser-verified (see "Cat companion" above) but not yet watched live with the Browser pane actually visible, and not yet part of a packaged desktop release — decide whether to cut a new version for it or bundle it with the next release.
-- Resolve the 4 untracked cat/kitten image files in the repo root — confirmed unused by the shipped (all-SVG) cat sprite; ask the user whether to delete or relocate them.
