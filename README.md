@@ -45,6 +45,10 @@ An optional bubble on the Dashboard shows a daily motivational quote or Bible ve
 - **Quote:** [ZenQuotes](https://zenquotes.io/), no key required.
 - **Verse:** the official YouVersion Verse of the Day, if a free YouVersion Platform app key is set under **Settings → LinkFlow** in wp-admin; otherwise falls back automatically to a curated reference list resolved against [bible-api.com](https://bible-api.com/) (also no key required).
 
+## Cat companion
+
+An optional animated cat (desktop and hosted web, since it's shared React code) wanders the Dashboard, idles, climbs onto/off section cards, and can be dragged and dropped — ported from a standalone prototype (`linkflow-dashboard/src/cat/`, see that folder's origin at `../LinkFlow Cat Companion`). Pure SVG, no image assets. Toggle under Settings → "Cat Companion" (per-device, defaults on). See the desktop README's changelog for verification status.
+
 ## In-app updates
 
 The desktop client checks for updates via `@tauri-apps/plugin-updater` against `https://controll.co.za/wp-json/linkflow/v1/desktop/latest-release`, which the WordPress plugin backs with a server-side, authenticated proxy to the (private) GitHub Releases API — see `LinkFlow_Updates` in the plugin and `UpdateBanner.tsx` on the client. The GitHub token lives only in a WordPress option (Settings → LinkFlow), never on the client. **Verified working end-to-end on 2026-08-02** (0.1.8 → 0.1.9). Publishing a new release requires the release's `-setup.exe` and matching `-setup.exe.sig` (signed with the key in `~/.linkflow-updater-keys/` on this workstation) as GitHub Release assets — and remember the proxy's 30-minute release cache, which delays a freshly published release from being seen (`wp transient delete linkflow_latest_github_release` to force it).

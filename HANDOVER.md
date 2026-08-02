@@ -10,6 +10,7 @@ Last updated: 2026-08-02
 - YouVersion app key for the real Verse of the Day: registered (app "LinkFlow Dashboard", non-commercial, 2026-08-01) but **not yet confirmed entered** in Settings → LinkFlow on the live site — treat the bubble's verse mode as still possibly serving the `bible-api.com` fallback until checked.
 - **GitHub repository:** the project is now uploaded — `https://github.com/vincentrathbone-web/linkflow-dashboard` (private), `origin` on `master`.
 - **In-app update feature: fully verified working end-to-end**, 2026-08-02. See "In-app update feature" below for the full test record.
+- **Cat companion: ported in and browser-verified, not yet released.** Code changes are committed but no new desktop version has been built/packaged for this yet — see "Cat companion" below.
 - Primary client: native Windows app
 - Cloud host: `https://controll.co.za`
 - REST namespace: `/wp-json/linkflow/v1/`
@@ -35,6 +36,29 @@ Three pieces, all already coded (landed in commit `011cc12`, predating this hand
 - Confirmed live in the actual desktop app: installed 0.1.8, saw the update banner appear, clicked it, and it downloaded, installed, and relaunched successfully as 0.1.9.
 - **Lesson learned:** never generate a signing/encryption key without immediately saving its password somewhere durable (password manager) — losing it is unrecoverable and forces a full key rotation, which is harmless before any real release ships but would break every existing installation if it happened after signed releases were already in the wild (every old client's embedded pubkey would stop matching).
 - **Lesson learned:** the release proxy's 30-minute transient cache means a freshly published GitHub release will not appear immediately; clear `linkflow_latest_github_release` (or wait) when testing a just-published release.
+
+## Cat companion
+
+An optional animated cat that wanders the Dashboard, idles, climbs onto/off section cards, and can be picked up and dropped by the user. Ported from a separate standalone prototype the user had already built and hardened at `../LinkFlow Cat Companion` (sibling project, own HANDOVER.md/README.md with the full development history and hard-won SVG-transform lessons) — that project's own README already specified the exact integration steps, followed here:
+
+1. **`linkflow-dashboard/src/cat/catEngine.ts`** — pure state-machine logic (no React, no DOM writes), copied verbatim. One function, `stepCat(state, dtMs, containerWidth, perches) => nextState`, plus `resolveDrop()` for drag release and `createInitialCatState()`.
+2. **`linkflow-dashboard/src/cat/Cat.tsx`** — React wiring: `requestAnimationFrame` tick loop (pauses correctly when `document.hidden`), pointer-event drag/drop, and perch measurement via `[data-cat-perch]` DOM query (re-measured every 1.5s plus scroll/resize). Copied verbatim.
+3. **`linkflow-dashboard/src/cat/sprites/KawaiiCat.tsx`** — the pure-SVG sprite (grey/white kawaii cat, no image assets). Copied verbatim.
+4. The `cat-anim-*` keyframes were merged into `linkflow-dashboard/src/index.css` (scoped by class prefix, no other app-wide effect).
+5. `<Cat enabled={catEnabled} />` mounted once in `App.tsx`, next to `<UpdateBanner />`.
+6. `DashboardView.tsx`'s section card (`motion.section` in the sections map) got `data-cat-perch="true" data-cat-perch-id={section.id}` — every real dashboard section is now a climbable surface.
+7. Enable/disable is a new `catEnabled` toggle in `SettingsModal.tsx` ("Cat Companion" switch), state lives in `App.tsx`, persisted to `localStorage` under `linkflow_cat_enabled` (default on). Deliberately **not** added to `ThemeConfig`/synced workspace — like the Daily Inspiration bubble's mode, this is a per-device display preference with no reason to sync across devices or bump the workspace schema.
+
+**Verified 2026-08-02** (browser dev server, not yet in a packaged release):
+- TypeScript lint clean.
+- The sprite renders and the DOM overlay structure (`position: fixed`, `pointer-events: none` except the cat itself, `z-index: 9000`) matches the prototype exactly.
+- A real dashboard section card correctly carries `data-cat-perch`/`data-cat-perch-id` and is measurable via `getBoundingClientRect()`.
+- Drag entry point confirmed (`cursor: grab`, `pointerEvents: auto`, `touchAction: none` on the cat's div).
+- The Settings toggle correctly shows/hides the cat and persists to `localStorage`.
+- **Movement itself could not be watched live in this session** — the Browser pane wasn't actually composited/visible on the automation side, so `document.hidden` was `true` the whole time, and the app correctly paused the simulation exactly as designed (see `Cat.tsx`'s tick loop). Instead, `catEngine.ts` was dynamically imported straight from the running dev server's module graph and driven directly with the real perch rect measured from the live DOM (same methodology as the original prototype's own bug-hunting, see its `HANDOVER.md`) — confirmed it walks toward the section card, arrives at the card's true right edge (`x` snaps to `perch.left + perch.width`), and begins climbing (`y` increasing) exactly as expected.
+- **Still needed:** a real visual/interactive check with the Browser pane actually visible (watch it wander/climb/drag over time with your own eyes), and a decision on whether this ships in the next desktop release or waits.
+
+**Untracked image files in the repo root** (`Gemini_Generated_Image_2liav22liav22lia.png`, the kitten/British-shorthair/cartoon-cat-poses JPGs) are **not used by this feature** — the sprite is 100% SVG, no image assets. These look like reference/mood-board images from earlier design exploration; ask the user whether to delete them, move them to a `design/` or `reference/` folder outside `src/`, or leave them as-is (they're untracked, so they don't affect any build either way).
 
 ## Repository layout
 
@@ -193,4 +217,5 @@ supported pairing is in Status above.
 - Consider whether the temporary `SyncDiagnosticsPanel` can now be hidden behind a support-mode flag rather than always-visible, now that the write path, credential persistence, and hosted-page configuration bugs are all resolved and verified live.
 - No further sync-architecture work is currently planned; see the 2026-08-01 architectural decision above for why continuous polling is intentionally out of scope.
 - The in-app update feature is now fully verified end-to-end (see above) — no further work needed there unless a real feature release surfaces a new issue. Remember the 30-minute release-transient cache when testing future releases.
-- Virtual pet cat feature: lowest priority, next up. Four cat/kitten image assets are sitting untracked in the repo root (not yet moved into a proper assets folder or wired into any component); the user says the feature code is "basically ready to port in" from elsewhere — still need to establish exactly where that source code lives before porting it.
+- Cat companion is ported and browser-verified (see "Cat companion" above) but not yet watched live with the Browser pane actually visible, and not yet part of a packaged desktop release — decide whether to cut a new version for it or bundle it with the next release.
+- Resolve the 4 untracked cat/kitten image files in the repo root — confirmed unused by the shipped (all-SVG) cat sprite; ask the user whether to delete or relocate them.

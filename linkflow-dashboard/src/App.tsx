@@ -26,6 +26,7 @@ import { OnboardingWizard } from './components/onboarding/OnboardingWizard';
 import { SortBoard } from './components/onboarding/SortBoard';
 import { WizardLinkDraft } from './lib/parseBulkLinks';
 import { UpdateBanner } from './components/UpdateBanner';
+import { Cat } from './cat/Cat';
 import { describeWorkspace, logSync, textFingerprint } from './lib/syncDiagnostics';
 
 const ONBOARDING_KEY = 'linkflow_onboarding_done';
@@ -235,6 +236,15 @@ export default function App() {
   // URL sanitizer, and a local file path only makes sense on this one
   // device anyway. Kept in localStorage, separate from theme.canvasImageUrl.
   const [localBgImage, setLocalBgImageState] = useState<string | null>(() => localStorage.getItem('linkflow_local_bg_image'));
+
+  // The cat companion is a per-device display preference (like the Daily
+  // Inspiration bubble's mode), not workspace content — it has no reason to
+  // sync across devices, so it lives in localStorage rather than ThemeConfig.
+  const [catEnabled, setCatEnabled] = useState<boolean>(() => localStorage.getItem('linkflow_cat_enabled') !== 'false');
+  const handleSetCatEnabled = (value: boolean) => {
+    setCatEnabled(value);
+    localStorage.setItem('linkflow_cat_enabled', String(value));
+  };
   const handleSetLocalBgImage = (dataUrl: string | null) => {
     setLocalBgImageState(dataUrl);
     try {
@@ -728,6 +738,7 @@ export default function App() {
   return (
     <div className={`min-h-screen relative text-text-main ${isDark ? 'dark' : ''}`}>
       <UpdateBanner />
+      <Cat enabled={catEnabled} />
 
       {/* Background Canvas Layer */}
       <div
@@ -880,6 +891,8 @@ export default function App() {
         onResetToDefaults={handleResetToDefaults}
         onExpandAllSections={handleExpandAllSections}
         onCollapseAllSections={handleCollapseAllSections}
+        catEnabled={catEnabled}
+        onSetCatEnabled={handleSetCatEnabled}
       />
 
       <AdvancedThemeModal

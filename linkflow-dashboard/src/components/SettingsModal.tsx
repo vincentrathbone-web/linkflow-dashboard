@@ -13,6 +13,8 @@ interface SettingsModalProps {
   onResetToDefaults: () => void;
   onExpandAllSections: () => void;
   onCollapseAllSections: () => void;
+  catEnabled: boolean;
+  onSetCatEnabled: (value: boolean) => void;
 }
 
 export const SettingsModal: React.FC<SettingsModalProps> = ({
@@ -26,6 +28,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   onResetToDefaults,
   onExpandAllSections,
   onCollapseAllSections,
+  catEnabled,
+  onSetCatEnabled,
 }) => {
   if (!isOpen) return null;
 
@@ -157,6 +161,33 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                 Collapse All Sections
               </button>
             </div>
+          </div>
+
+          {/* Cat Companion */}
+          <div className="flex items-center justify-between gap-4 pt-4 border-t border-border-subtle">
+            <div className="flex flex-col gap-0.5">
+              <label className="text-[11px] font-bold text-text-muted uppercase tracking-wider">
+                Cat Companion
+              </label>
+              <span className="text-xs text-text-muted">
+                A small animated cat that wanders the dashboard and can climb onto section cards.
+              </span>
+            </div>
+            <button
+              type="button"
+              role="switch"
+              aria-checked={catEnabled}
+              onClick={() => onSetCatEnabled(!catEnabled)}
+              className={`relative shrink-0 w-11 h-6 rounded-full transition-colors ${
+                catEnabled ? 'bg-brand' : 'bg-surface-active'
+              }`}
+            >
+              <span
+                className={`absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white shadow transition-transform ${
+                  catEnabled ? 'translate-x-5' : 'translate-x-0'
+                }`}
+              />
+            </button>
           </div>
 
           {/* Backup & Data Management */}

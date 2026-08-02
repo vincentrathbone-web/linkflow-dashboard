@@ -112,6 +112,8 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                   !isExpanded ? 'collapsed-parent' : ''
                 }`}
                 data-state={isExpanded ? 'expanded' : 'collapsed'}
+                data-cat-perch="true"
+                data-cat-perch-id={section.id}
               >
                 {/* Section Header */}
                 <div className="w-full flex justify-between items-center px-4 py-3 border-b border-border-subtle bg-surface/50 hover:bg-surface/80 transition-colors">

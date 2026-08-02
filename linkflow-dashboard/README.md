@@ -8,6 +8,8 @@ The app checks for updates on launch via `@tauri-apps/plugin-updater` (see `Upda
 
 The temporary sync diagnostics console is no longer shown on top of the app by default — open it from the "Sync log" link in the top nav, which opens it in its own window/tab instead.
 
+An optional cat companion wanders the Dashboard, idles, climbs onto/off section cards, and can be dragged and dropped. Code lives in `src/cat/` (`catEngine.ts` pure state machine, `Cat.tsx` React wiring, `sprites/KawaiiCat.tsx` the pure-SVG sprite) — ported from a standalone prototype at `../LinkFlow Cat Companion`, which keeps the full development history if a similar rendering bug needs chasing again. Toggle it under Settings → "Cat Companion" (per-device `localStorage`, defaults on, not synced to the cloud workspace).
+
 The REST contract this client uses dates to plugin 0.4.5, so an existing 0.4.5-0.4.8 site will still respond correctly. Do not deploy one, though: every package before 0.4.9 has a known install or activation defect on Linux hosts.
 
 ## Development
@@ -49,6 +51,10 @@ For the MSVC x64 build used by this project, Tauri places the installers under `
 
 This is the canonical desktop changelog. The WordPress plugin keeps its own in
 [`wordpress-plugin/linkflow-dashboard/README.md`](../wordpress-plugin/linkflow-dashboard/README.md).
+
+### Unreleased
+
+- Ported the cat companion prototype (`../LinkFlow Cat Companion`) into `src/cat/`: an optional animated cat that wanders the Dashboard, idles, climbs onto/off any section card, and can be picked up and dropped by the user. `catEngine.ts`/`Cat.tsx`/`sprites/KawaiiCat.tsx` copied verbatim per that project's own integration notes; `cat-anim-*` keyframes merged into `index.css`; `DashboardView.tsx`'s section cards marked `data-cat-perch`/`data-cat-perch-id`; a "Cat Companion" toggle added to Settings (per-device `localStorage`, default on — not synced to the cloud workspace, same pattern as the Daily Inspiration bubble's mode). Verified in a browser dev server: engine logic, DOM perch measurement, drag entry point, and the Settings toggle all confirmed working. Not yet part of a packaged release — no version bump yet.
 
 ### Version 0.1.9 (2026-08-02, with plugin 0.4.19)
 
