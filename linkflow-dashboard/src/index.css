@@ -1,0 +1,218 @@
+/* LinkFlow is embedded in WordPress, where unlayered theme CSS otherwise wins
+ * over Tailwind's layered utilities. Emit utilities as !important so the app
+ * remains visually isolated inside its own root. */
+@import "tailwindcss" important;
+
+/* Tailwind v4 defaults dark: to prefers-color-scheme (media query). This app
+ * toggles its own .dark class on <html> based on the in-app theme setting
+ * (see App.tsx), independent of the OS preference — so dark: must be scoped
+ * to that class, or every dark: utility silently follows the OS instead of
+ * the user's actual in-app theme choice. */
+@custom-variant dark (&:where(.dark, .dark *));
+
+@theme {
+  --color-canvas: var(--bg-canvas);
+  --color-surface: var(--bg-surface);
+  --color-surface-hover: var(--bg-surface-hover);
+  --color-surface-active: var(--bg-surface-active);
+  --color-surface-elevated: var(--bg-surface-elevated);
+  --color-surface-subtle: var(--bg-surface-subtle);
+
+  --color-border-main: var(--border-main);
+  --color-border-subtle: var(--border-subtle);
+  --color-border-focus: var(--border-focus);
+
+  --color-text-main: var(--text-main);
+  --color-text-muted: var(--text-muted);
+  --color-text-subtle: var(--text-subtle);
+  --color-text-inverse: var(--text-inverse);
+
+  --color-brand: var(--accent-color, #2563eb);
+  --color-brand-hover: var(--brand-hover-color, #1d4ed8);
+  --color-brand-subtle: var(--brand-subtle-color, #eff6ff);
+  --color-brand-text: var(--brand-text-color, #2563eb);
+
+  --color-danger: var(--danger-color, #e11d48);
+  --color-danger-subtle: var(--danger-subtle-color, #fff1f2);
+  --color-star: var(--star-color, #eab308);
+}
+
+:root {
+  --bg-canvas: #f8fafc;
+  --bg-surface: rgba(255, 255, 255, 0.85);
+  --bg-surface-hover: rgba(241, 245, 249, 0.9);
+  --bg-surface-active: #e2e8f0;
+  --bg-surface-elevated: #ffffff;
+  --bg-surface-subtle: #f1f5f9;
+
+  --border-main: rgba(226, 232, 240, 0.9);
+  --border-subtle: rgba(203, 213, 225, 0.6);
+  --border-focus: var(--accent-color, #2563eb);
+
+  --text-main: #0f172a;
+  --text-muted: #64748b;
+  --text-subtle: #94a3b8;
+  --text-inverse: #ffffff;
+
+  --brand-hover-color: color-mix(in srgb, var(--accent-color, #2563eb) 85%, #000);
+  --brand-subtle-color: color-mix(in srgb, var(--accent-color, #2563eb) 12%, transparent);
+  --brand-text-color: var(--accent-color, #2563eb);
+
+  --danger-color: #e11d48;
+  --danger-subtle-color: #fff1f2;
+  --star-color: #eab308;
+
+  --card-opacity: 0.85;
+
+  /* Overridden at runtime from theme.fontPairId (see App.tsx) once the
+   * matching Google Fonts stylesheet is loaded; these are the fallback
+   * defaults for first paint. */
+  --font-body: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-heading: 'Outfit', 'Plus Jakarta Sans', sans-serif;
+}
+
+.dark {
+  --bg-canvas: #0f172a;
+  --bg-surface: rgba(30, 41, 59, 0.8);
+  --bg-surface-hover: rgba(51, 65, 85, 0.8);
+  --bg-surface-active: #334155;
+  --bg-surface-elevated: #1e293b;
+  --bg-surface-subtle: #1e293b;
+
+  --border-main: rgba(255, 255, 255, 0.1);
+  --border-subtle: rgba(255, 255, 255, 0.06);
+  --border-focus: var(--accent-color, #3b82f6);
+
+  --text-main: #f8fafc;
+  --text-muted: #94a3b8;
+  --text-subtle: #64748b;
+  --text-inverse: #0f172a;
+
+  --brand-hover-color: color-mix(in srgb, var(--accent-color, #3b82f6) 85%, #fff);
+  --brand-subtle-color: color-mix(in srgb, var(--accent-color, #3b82f6) 20%, transparent);
+  --brand-text-color: var(--accent-color, #60a5fa);
+
+  --danger-color: #fb7185;
+  --danger-subtle-color: rgba(136, 19, 55, 0.3);
+  --star-color: #facc15;
+}
+
+@layer base {
+  body {
+    font-family: var(--font-body);
+    transition: background-color 0.3s ease, color 0.3s ease;
+    color: var(--text-main);
+    background-color: var(--bg-canvas);
+  }
+
+  h1, h2, h3, h4, .font-heading {
+    font-family: var(--font-heading);
+  }
+}
+
+/* Custom Scrollbars */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--border-subtle);
+  border-radius: 9999px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--text-subtle);
+}
+
+/* Card & Glass Panels Refined using token variables */
+.glass-card {
+  background: color-mix(in srgb, var(--bg-surface) calc(var(--card-opacity) * 100%), transparent);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid var(--border-main);
+  box-shadow: 0 4px 20px -2px rgba(15, 23, 42, 0.05), 0 2px 6px -1px rgba(15, 23, 42, 0.03);
+}
+
+.dark .glass-card {
+  box-shadow: 0 4px 24px -2px rgba(0, 0, 0, 0.4);
+}
+
+.glass-panel {
+  background: var(--bg-surface-elevated);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid var(--border-main);
+  box-shadow: 0 10px 30px -5px rgba(15, 23, 42, 0.08);
+}
+
+.dark .glass-panel {
+  box-shadow: 0 10px 30px -5px rgba(0, 0, 0, 0.5);
+}
+
+/* Section transition */
+.section-content {
+  transition: max-height 0.35s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.3s ease, padding 0.3s ease;
+  max-height: 1200px;
+  opacity: 1;
+}
+
+.section-content.collapsed {
+  max-height: 0;
+  opacity: 0;
+  padding-top: 0 !important;
+  padding-bottom: 0 !important;
+  overflow: hidden;
+}
+
+.chevron {
+  transition: transform 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.collapsed-parent .chevron {
+  transform: rotate(-90deg);
+}
+
+/* Slider styling */
+input[type=range] {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  background: transparent;
+}
+
+input[type=range]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  height: 18px;
+  width: 18px;
+  border-radius: 50%;
+  background: var(--accent-color, #2563eb);
+  cursor: pointer;
+  margin-top: -7px;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
+  transition: transform 0.15s ease;
+}
+
+input[type=range]::-webkit-slider-thumb:hover {
+  transform: scale(1.15);
+}
+
+input[type=range]::-webkit-slider-runnable-track {
+  width: 100%;
+  height: 4px;
+  cursor: pointer;
+  background: var(--border-subtle);
+  border-radius: 9999px;
+}
+
+/* Material symbols utility */
+.material-symbols-outlined {
+  font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+  display: inline-block;
+  vertical-align: middle;
+}
+
+.material-symbols-outlined.filled {
+  font-variation-settings: 'FILL' 1, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+}

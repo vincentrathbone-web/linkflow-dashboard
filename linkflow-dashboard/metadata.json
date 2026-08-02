@@ -1,0 +1,6 @@
+{
+  "name": "LinkFlow Dashboard",
+  "description": "Personalized command center for client portals, worksheets, and links with customizable glassmorphism desktop themes.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
