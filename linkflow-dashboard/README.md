@@ -2,9 +2,9 @@
 
 LinkFlow is a private, Windows desktop link workspace. Its React interface is packaged with Tauri and connects directly to the LinkFlow WordPress plugin API; it never renders the WordPress theme or Elementor.
 
-Current desktop version: **0.1.8**. Requires WordPress plugin **0.4.13 or later** for Google sign-in and desktop-initiated sign-out to work (0.4.18+ is the paired release; see `HANDOVER.md` for the exact live version).
+Current desktop version: **0.1.9**. Requires WordPress plugin **0.4.13 or later** for Google sign-in and desktop-initiated sign-out to work (0.4.19 is the paired, live release).
 
-The app checks for updates on launch via `@tauri-apps/plugin-updater` (see `UpdateBanner.tsx`), against a WordPress-hosted proxy in front of GitHub Releases — see the plugin README's "In-app updates" section for the full path and current verification status.
+The app checks for updates on launch via `@tauri-apps/plugin-updater` (see `UpdateBanner.tsx`), against a WordPress-hosted proxy in front of GitHub Releases — see the plugin README's "In-app updates" section for the full path. **Verified working end-to-end** on 2026-08-02: an installed 0.1.8 client detected the published 0.1.9 GitHub Release, downloaded it, installed it, and relaunched successfully.
 
 The temporary sync diagnostics console is no longer shown on top of the app by default — open it from the "Sync log" link in the top nav, which opens it in its own window/tab instead.
 
@@ -49,6 +49,12 @@ For the MSVC x64 build used by this project, Tauri places the installers under `
 
 This is the canonical desktop changelog. The WordPress plugin keeps its own in
 [`wordpress-plugin/linkflow-dashboard/README.md`](../wordpress-plugin/linkflow-dashboard/README.md).
+
+### Version 0.1.9 (2026-08-02, with plugin 0.4.19)
+
+- Version-only bump, no functional change, created specifically to have a "newer" release to test the in-app updater against a running 0.1.8 client. Confirmed the whole chain works: an installed 0.1.8 client saw the update banner, downloaded this release from the WordPress GitHub-release proxy, verified its minisign signature, installed it, and relaunched as 0.1.9.
+- This required rotating the updater's signing keypair first: the original key (used to configure `tauri.conf.json`'s `pubkey` at 0.1.7/0.1.8 time) had an unrecoverable password with no record kept anywhere, so a fresh keypair was generated and the embedded pubkey updated to match. No release had shipped signed with the old key, so this had no user-facing impact.
+- Uncovered a real gotcha in the update proxy: `LinkFlow_Updates` caches the GitHub API's latest-release lookup in a 30-minute WordPress transient. Publishing a new GitHub Release does not invalidate it — the proxy will keep serving the previous release's data (or a stale "already current" 204) until the transient expires or is manually cleared (`wp transient delete linkflow_latest_github_release`). Worth remembering for every future release.
 
 ### Version 0.1.8 (2026-08-02, with plugin 0.4.18+)
 
@@ -120,3 +126,5 @@ This is the canonical desktop changelog. The WordPress plugin keeps its own in
 - Matching a "glass" panel's visual transparency to another element requires matching its *layer structure*, not just its computed background color/opacity at one point: this app's section cards stack an outer `glass-card` (blurred, theme-opacity tint) with an inner `bg-surface/50` row on top, and the two compound. Applying only the outer class, or overriding the color with a single flat utility, reads visibly lighter than the real target even when a `getComputedStyle` check on one point shows an identical value.
 - A Tailwind utility class (e.g. `font-sans`) on a DOM ancestor sets an explicit `font-family` that wins over an inherited CSS custom property from a base-layer selector like `body { font-family: var(--font-body) }`, because CSS inheritance stops at the first ancestor with its own explicit declaration. When a themed font/color isn't reaching a deeply nested element that has no conflicting class of its own, check ancestors for a leftover hardcoded utility class, not just the element itself.
 - A file-download pattern that works fine in every real browser (`<a download href="data:...">`) is not guaranteed to work inside Tauri's WebView2 shell — it can silently do nothing, with no console error. For any desktop save-to-disk feature, use the dialog plugin's native save picker plus a Rust-side file write (or the fs plugin with proper scope), and keep the browser-native path only for the hosted web build.
+- Save the updater's signing-key password somewhere durable (a password manager) the moment `tauri signer generate` creates it. There is no recovery path for an encrypted minisign key with a forgotten password — the only fix is generating a brand-new keypair and updating every build's embedded `pubkey`, which is harmless before any signed release ships but would strand every already-updated installation if done afterward.
+- A WordPress-side release-lookup cache (here, a 30-minute transient wrapping the GitHub API call) will make a just-published release invisible to the update-check endpoint until it expires or is cleared manually. Don't mistake a stale-cache "no update available" response for a broken token or a bad release when testing right after publishing.

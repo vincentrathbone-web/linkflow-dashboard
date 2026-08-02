@@ -51,7 +51,7 @@ The YouVersion app key is a free, non-commercial developer key from [platform.yo
 
 The GitHub token is a fine-grained PAT (Contents: Read-only, scoped to just this repo) stored in the `linkflow_github_release_token` WordPress option via **Settings → LinkFlow**, entered directly in wp-admin — never in a file, never sent to the client. The latest-release lookup is cached in a transient for 30 minutes.
 
-For this proxy to return anything other than 204, a GitHub Release must exist with both a signed `-setup.exe` and its `-setup.exe.sig`. See `HANDOVER.md` for current status of the signing key and whether a real release has been published yet.
+For this proxy to return anything other than 204, a GitHub Release must exist with both a signed `-setup.exe` and its `-setup.exe.sig`. **Verified working end-to-end on 2026-08-02** (desktop 0.1.8 detected, downloaded, and installed the 0.1.9 GitHub Release). Note the 30-minute transient cache on the latest-release lookup: a just-published release won't be picked up until the cache expires or `wp transient delete linkflow_latest_github_release` is run.
 
 ## Packaging
 

@@ -13,7 +13,7 @@ There are no public workspaces, public URLs, or shared tabs.
 | Component | Version | Source |
 | --- | ---: | --- |
 | WordPress plugin | 0.4.19 (live on `controll.co.za`) | `wordpress-plugin/linkflow-dashboard/` |
-| Windows desktop app | 0.1.8 | `linkflow-dashboard/src-tauri/` |
+| Windows desktop app | 0.1.9 | `linkflow-dashboard/src-tauri/` |
 
 Source is hosted on GitHub: [`vincentrathbone-web/linkflow-dashboard`](https://github.com/vincentrathbone-web/linkflow-dashboard) (private repo).
 
@@ -47,7 +47,7 @@ An optional bubble on the Dashboard shows a daily motivational quote or Bible ve
 
 ## In-app updates
 
-The desktop client checks for updates via `@tauri-apps/plugin-updater` against `https://controll.co.za/wp-json/linkflow/v1/desktop/latest-release`, which the WordPress plugin backs with a server-side, authenticated proxy to the (private) GitHub Releases API — see `LinkFlow_Updates` in the plugin and `UpdateBanner.tsx` on the client. The GitHub token lives only in a WordPress option (Settings → LinkFlow), never on the client. Publishing a new release therefore requires the release's `-setup.exe` and matching `-setup.exe.sig` (signed with the key in `~/.linkflow-updater-keys/` on this workstation) to exist as GitHub Release assets. See `HANDOVER.md` for exact verification status.
+The desktop client checks for updates via `@tauri-apps/plugin-updater` against `https://controll.co.za/wp-json/linkflow/v1/desktop/latest-release`, which the WordPress plugin backs with a server-side, authenticated proxy to the (private) GitHub Releases API — see `LinkFlow_Updates` in the plugin and `UpdateBanner.tsx` on the client. The GitHub token lives only in a WordPress option (Settings → LinkFlow), never on the client. **Verified working end-to-end on 2026-08-02** (0.1.8 → 0.1.9). Publishing a new release requires the release's `-setup.exe` and matching `-setup.exe.sig` (signed with the key in `~/.linkflow-updater-keys/` on this workstation) as GitHub Release assets — and remember the proxy's 30-minute release cache, which delays a freshly published release from being seen (`wp transient delete linkflow_latest_github_release` to force it).
 
 ## Build and package
 
