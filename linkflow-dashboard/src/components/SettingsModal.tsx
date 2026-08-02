@@ -163,11 +163,11 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
             </div>
           </div>
 
-          {/* Cat Companion */}
+          {/* Virtual Pet */}
           <div className="flex items-center justify-between gap-4 pt-4 border-t border-border-subtle">
             <div className="flex flex-col gap-0.5">
               <label className="text-[11px] font-bold text-text-muted uppercase tracking-wider">
-                Cat Companion
+                Virtual Pet
               </label>
               <span className="text-xs text-text-muted">
                 A small animated cat that wanders the dashboard and can climb onto section cards.

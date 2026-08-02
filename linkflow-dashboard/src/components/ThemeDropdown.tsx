@@ -7,6 +7,8 @@ interface ThemeDropdownProps {
   onUpdateTheme: (updates: Partial<ThemeConfig>) => void;
   onOpenAdvanced: () => void;
   onClose: () => void;
+  catEnabled: boolean;
+  onSetCatEnabled: (value: boolean) => void;
 }
 
 export const ThemeDropdown: React.FC<ThemeDropdownProps> = ({
@@ -14,6 +16,8 @@ export const ThemeDropdown: React.FC<ThemeDropdownProps> = ({
   onUpdateTheme,
   onOpenAdvanced,
   onClose,
+  catEnabled,
+  onSetCatEnabled,
 }) => {
   return (
     <div
@@ -31,6 +35,31 @@ export const ThemeDropdown: React.FC<ThemeDropdownProps> = ({
           title="Close theme menu"
         >
           <span className="material-symbols-outlined text-base">close</span>
+        </button>
+      </div>
+
+      {/* Virtual Pet — kept low-key at the top since it's a fun extra, not
+          a real theming option, but wanted quick one-click access. */}
+      <div className="flex justify-between items-center -mt-1">
+        <span className="text-xs text-text-main font-medium flex items-center gap-1.5">
+          <span className="material-symbols-outlined text-sm text-text-muted">pets</span>
+          Virtual Pet
+        </span>
+        <button
+          type="button"
+          role="switch"
+          aria-checked={catEnabled}
+          onClick={() => onSetCatEnabled(!catEnabled)}
+          title={catEnabled ? 'Turn virtual pet off' : 'Turn virtual pet on'}
+          className={`w-10 h-5 rounded-full relative transition-colors duration-200 focus:outline-none p-0.5 ${
+            catEnabled ? 'bg-brand' : 'bg-surface-active'
+          }`}
+        >
+          <span
+            className={`block w-4 h-4 bg-white rounded-full shadow transition-transform duration-200 ${
+              catEnabled ? 'translate-x-5' : 'translate-x-0'
+            }`}
+          />
         </button>
       </div>
 

@@ -18,6 +18,8 @@ interface TopNavBarProps {
   onSignOut: () => void;
   onOpenDiagnostics: () => void;
   hasSections: boolean;
+  catEnabled: boolean;
+  onSetCatEnabled: (value: boolean) => void;
 }
 
 export const TopNavBar: React.FC<TopNavBarProps> = ({
@@ -36,6 +38,8 @@ export const TopNavBar: React.FC<TopNavBarProps> = ({
   onSignOut,
   onOpenDiagnostics,
   hasSections,
+  catEnabled,
+  onSetCatEnabled,
 }) => {
   const [isThemeOpen, setIsThemeOpen] = useState(false);
   const [isAddMenuOpen, setIsAddMenuOpen] = useState(false);
@@ -178,6 +182,8 @@ export const TopNavBar: React.FC<TopNavBarProps> = ({
                 onUpdateTheme={onUpdateTheme}
                 onOpenAdvanced={onOpenAdvancedTheme}
                 onClose={() => setIsThemeOpen(false)}
+                catEnabled={catEnabled}
+                onSetCatEnabled={onSetCatEnabled}
               />
             )}
           </div>

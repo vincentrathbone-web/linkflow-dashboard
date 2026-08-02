@@ -784,6 +784,8 @@ export default function App() {
         onSignOut={handleSignOut}
         onOpenDiagnostics={() => void openDiagnosticsWindow()}
         hasSections={sections.length > 0}
+        catEnabled={catEnabled}
+        onSetCatEnabled={handleSetCatEnabled}
       />
 
       {/* Main Screen Views */}

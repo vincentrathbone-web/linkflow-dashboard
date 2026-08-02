@@ -45,9 +45,9 @@ An optional bubble on the Dashboard shows a daily motivational quote or Bible ve
 - **Quote:** [ZenQuotes](https://zenquotes.io/), no key required.
 - **Verse:** the official YouVersion Verse of the Day, if a free YouVersion Platform app key is set under **Settings → LinkFlow** in wp-admin; otherwise falls back automatically to a curated reference list resolved against [bible-api.com](https://bible-api.com/) (also no key required).
 
-## Cat companion
+## Virtual pet
 
-An optional animated cat (desktop and hosted web, since it's shared React code) wanders the Dashboard, idles, climbs onto/off section cards, and can be dragged and dropped — ported from a standalone prototype (`linkflow-dashboard/src/cat/`, see that folder's origin at `../LinkFlow Cat Companion`). Pure SVG, no image assets. Toggle under Settings → "Cat Companion" (per-device, defaults on). See the desktop README's changelog for verification status.
+An optional animated cat (desktop and hosted web, since it's shared React code) wanders the Dashboard, idles, climbs onto/off section cards, and can be dragged and dropped — ported from a standalone prototype (`linkflow-dashboard/src/cat/`, see that folder's origin at `../LinkFlow Cat Companion`). Pure SVG, no image assets. Called "Virtual Pet" in the UI (the code keeps the internal `cat`/`Cat` naming). Two toggles, same state: a low-key switch at the top of the Theme dropdown, and one in Settings → Workspace Preferences. Per-device, defaults on. See the desktop README's changelog for verification status.
 
 ## In-app updates
 

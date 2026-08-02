@@ -47,14 +47,15 @@ An optional animated cat that wanders the Dashboard, idles, climbs onto/off sect
 4. The `cat-anim-*` keyframes were merged into `linkflow-dashboard/src/index.css` (scoped by class prefix, no other app-wide effect).
 5. `<Cat enabled={catEnabled} />` mounted once in `App.tsx`, next to `<UpdateBanner />`.
 6. `DashboardView.tsx`'s section card (`motion.section` in the sections map) got `data-cat-perch="true" data-cat-perch-id={section.id}` — every real dashboard section is now a climbable surface.
-7. Enable/disable is a new `catEnabled` toggle in `SettingsModal.tsx` ("Cat Companion" switch), state lives in `App.tsx`, persisted to `localStorage` under `linkflow_cat_enabled` (default on). Deliberately **not** added to `ThemeConfig`/synced workspace — like the Daily Inspiration bubble's mode, this is a per-device display preference with no reason to sync across devices or bump the workspace schema.
+7. Enable/disable state (`catEnabled`) lives in `App.tsx`, persisted to `localStorage` under `linkflow_cat_enabled` (default on). Deliberately **not** added to `ThemeConfig`/synced workspace — like the Daily Inspiration bubble's mode, this is a per-device display preference with no reason to sync across devices or bump the workspace schema.
+8. User-facing label is **"Virtual Pet"**, not "Cat Companion" — that internal name stays in code (folder, component, variable names) since renaming those has no user-visible benefit, but the two on-screen toggles both say "Virtual Pet". There are two, both wired to the same `catEnabled` state: a low-key switch pinned to the very top of the Theme dropdown (`ThemeDropdown.tsx`, above Presets — added per explicit request for quick one-click access) and the original toggle in Settings → Workspace Preferences (`SettingsModal.tsx`).
 
 **Verified 2026-08-02** (browser dev server, not yet in a packaged release):
 - TypeScript lint clean.
 - The sprite renders and the DOM overlay structure (`position: fixed`, `pointer-events: none` except the cat itself, `z-index: 9000`) matches the prototype exactly.
 - A real dashboard section card correctly carries `data-cat-perch`/`data-cat-perch-id` and is measurable via `getBoundingClientRect()`.
 - Drag entry point confirmed (`cursor: grab`, `pointerEvents: auto`, `touchAction: none` on the cat's div).
-- The Settings toggle correctly shows/hides the cat and persists to `localStorage`.
+- Both toggles (Theme dropdown and Settings) correctly show/hide the cat and persist to `localStorage`; confirmed live via the actual dropdown switch (label reads "Turn virtual pet off"/"on" correctly as it flips).
 - **Movement itself could not be watched live in this session** — the Browser pane wasn't actually composited/visible on the automation side, so `document.hidden` was `true` the whole time, and the app correctly paused the simulation exactly as designed (see `Cat.tsx`'s tick loop). Instead, `catEngine.ts` was dynamically imported straight from the running dev server's module graph and driven directly with the real perch rect measured from the live DOM (same methodology as the original prototype's own bug-hunting, see its `HANDOVER.md`) — confirmed it walks toward the section card, arrives at the card's true right edge (`x` snaps to `perch.left + perch.width`), and begins climbing (`y` increasing) exactly as expected.
 - **Still needed:** a real visual/interactive check with the Browser pane actually visible (watch it wander/climb/drag over time with your own eyes), and a decision on whether this ships in the next desktop release or waits.
 
