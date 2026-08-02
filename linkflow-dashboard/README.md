@@ -2,13 +2,13 @@
 
 LinkFlow is a private, Windows desktop link workspace. Its React interface is packaged with Tauri and connects directly to the LinkFlow WordPress plugin API; it never renders the WordPress theme or Elementor.
 
-Current desktop version: **0.1.9**. Requires WordPress plugin **0.4.13 or later** for Google sign-in and desktop-initiated sign-out to work (0.4.19 is the paired, live release).
+Current desktop version: **0.1.10**. Requires WordPress plugin **0.4.13 or later** for Google sign-in and desktop-initiated sign-out to work (0.4.19 is the paired, live release).
 
 The app checks for updates on launch via `@tauri-apps/plugin-updater` (see `UpdateBanner.tsx`), against a WordPress-hosted proxy in front of GitHub Releases — see the plugin README's "In-app updates" section for the full path. **Verified working end-to-end** on 2026-08-02: an installed 0.1.8 client detected the published 0.1.9 GitHub Release, downloaded it, installed it, and relaunched successfully.
 
 The temporary sync diagnostics console is no longer shown on top of the app by default — open it from the "Sync log" link in the top nav, which opens it in its own window/tab instead.
 
-An optional cat companion wanders the Dashboard, idles, climbs onto/off section cards, and can be dragged and dropped. Code lives in `src/cat/` (`catEngine.ts` pure state machine, `Cat.tsx` React wiring, `sprites/KawaiiCat.tsx` the pure-SVG sprite) — ported from a standalone prototype at `../LinkFlow Cat Companion`, which keeps the full development history if a similar rendering bug needs chasing again. Toggle it under Settings → "Cat Companion" (per-device `localStorage`, defaults on, not synced to the cloud workspace).
+An optional "Virtual Pet" (an animated cat) wanders the Dashboard, idles, climbs onto/off section cards, and can be dragged and dropped. Code lives in `src/cat/` (`catEngine.ts` pure state machine, `Cat.tsx` React wiring, `sprites/KawaiiCat.tsx` the pure-SVG sprite) — ported from the standalone [`linkflow-cat-companion`](https://github.com/vincentrathbone-web/linkflow-cat-companion) prototype, which keeps the full development history if a similar rendering bug needs chasing again. Two toggles, same state: a quick switch at the top of the Theme dropdown, and one in Settings → Workspace Preferences (per-device `localStorage`, defaults on, not synced to the cloud workspace).
 
 The REST contract this client uses dates to plugin 0.4.5, so an existing 0.4.5-0.4.8 site will still respond correctly. Do not deploy one, though: every package before 0.4.9 has a known install or activation defect on Linux hosts.
 
@@ -52,9 +52,10 @@ For the MSVC x64 build used by this project, Tauri places the installers under `
 This is the canonical desktop changelog. The WordPress plugin keeps its own in
 [`wordpress-plugin/linkflow-dashboard/README.md`](../wordpress-plugin/linkflow-dashboard/README.md).
 
-### Unreleased
+### Version 0.1.10 (2026-08-02, with plugin 0.4.19)
 
-- Ported the "Virtual Pet" companion prototype (`../LinkFlow Cat Companion`) into `src/cat/`: an optional animated cat that wanders the Dashboard, idles, climbs onto/off any section card, and can be picked up and dropped by the user. `catEngine.ts`/`Cat.tsx`/`sprites/KawaiiCat.tsx` copied verbatim per that project's own integration notes; `cat-anim-*` keyframes merged into `index.css`; `DashboardView.tsx`'s section cards marked `data-cat-perch`/`data-cat-perch-id`. Two toggles control it (same underlying per-device `localStorage` state, default on — not synced to the cloud workspace, same pattern as the Daily Inspiration bubble's mode): a low-key switch at the top of the Theme dropdown for quick access, and the original one in Settings → Workspace Preferences. Verified in a browser dev server: engine logic, DOM perch measurement, drag entry point, and both toggles all confirmed working. Not yet part of a packaged release — no version bump yet.
+- Added an optional "Virtual Pet" (an animated cat) that wanders the Dashboard, idles, climbs onto/off any section card, and can be picked up and dropped by the user. Ported into `src/cat/` from the standalone [`linkflow-cat-companion`](https://github.com/vincentrathbone-web/linkflow-cat-companion) prototype: `catEngine.ts`/`Cat.tsx`/`sprites/KawaiiCat.tsx` copied verbatim per that project's own integration notes; `cat-anim-*` keyframes merged into `index.css`; `DashboardView.tsx`'s section cards marked `data-cat-perch`/`data-cat-perch-id`. Two toggles, same underlying per-device `localStorage` state (default on — not synced to the cloud workspace, same pattern as the Daily Inspiration bubble's mode): a quick switch at the top of the Theme dropdown, and the original one in Settings → Workspace Preferences.
+- Version-only release otherwise, cut specifically to publish this feature via the (now-verified) in-app updater.
 
 ### Version 0.1.9 (2026-08-02, with plugin 0.4.19)
 

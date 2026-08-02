@@ -13,7 +13,7 @@ There are no public workspaces, public URLs, or shared tabs.
 | Component | Version | Source |
 | --- | ---: | --- |
 | WordPress plugin | 0.4.19 (live on `controll.co.za`) | `wordpress-plugin/linkflow-dashboard/` |
-| Windows desktop app | 0.1.9 | `linkflow-dashboard/src-tauri/` |
+| Windows desktop app | 0.1.10 | `linkflow-dashboard/src-tauri/` |
 
 Source is hosted on GitHub: [`vincentrathbone-web/linkflow-dashboard`](https://github.com/vincentrathbone-web/linkflow-dashboard) (private repo).
 
@@ -47,7 +47,7 @@ An optional bubble on the Dashboard shows a daily motivational quote or Bible ve
 
 ## Virtual pet
 
-An optional animated cat (desktop and hosted web, since it's shared React code) wanders the Dashboard, idles, climbs onto/off section cards, and can be dragged and dropped — ported from a standalone prototype (`linkflow-dashboard/src/cat/`, see that folder's origin at `../LinkFlow Cat Companion`). Pure SVG, no image assets. Called "Virtual Pet" in the UI (the code keeps the internal `cat`/`Cat` naming). Two toggles, same state: a low-key switch at the top of the Theme dropdown, and one in Settings → Workspace Preferences. Per-device, defaults on. See the desktop README's changelog for verification status.
+An optional animated cat (desktop and hosted web, since it's shared React code) wanders the Dashboard, idles, climbs onto/off section cards, and can be dragged and dropped — ported into `linkflow-dashboard/src/cat/` from the standalone [`linkflow-cat-companion`](https://github.com/vincentrathbone-web/linkflow-cat-companion) prototype (private repo, own development history). Pure SVG, no image assets. Called "Virtual Pet" in the UI (the code keeps the internal `cat`/`Cat` naming). Two toggles, same state: a quick switch at the top of the Theme dropdown, and one in Settings → Workspace Preferences. Per-device, defaults on. Shipped in desktop 0.1.10 — see the desktop README's changelog.
 
 ## In-app updates
 
