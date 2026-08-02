@@ -1,7 +1,8 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { ThemeConfig } from '../types';
 import { FONT_PAIRS, getFontPair } from '../data/fontPairs';
 import { ACCENT_COLORS } from '../data/accentColors';
+import { isDesktopApp } from '../lib/linkflowApi';
 
 const PREVIEW_FONT_LINK_ID = 'linkflow-font-preview-link';
 
@@ -11,6 +12,8 @@ interface AdvancedThemeModalProps {
   theme: ThemeConfig;
   onUpdateTheme: (updates: Partial<ThemeConfig>) => void;
   onResetTheme: () => void;
+  localBgImage: string | null;
+  onSetLocalBgImage: (dataUrl: string | null) => void;
 }
 
 const SAMPLE_CANVAS_WALLPAPERS = [
@@ -38,9 +41,13 @@ export const AdvancedThemeModal: React.FC<AdvancedThemeModalProps> = ({
   theme,
   onUpdateTheme,
   onResetTheme,
+  localBgImage,
+  onSetLocalBgImage,
 }) => {
   const [customHex, setCustomHex] = useState(theme.accentColor);
   const [customBgUrl, setCustomBgUrl] = useState(theme.canvasImageUrl || '');
+  const [isBrowsingImage, setIsBrowsingImage] = useState(false);
+  const webFileInputRef = useRef<HTMLInputElement>(null);
 
   // The font-pair picker previews every option's real typeface, not just the
   // active one, so load all of them once the modal is open (the active
@@ -69,8 +76,57 @@ export const AdvancedThemeModal: React.FC<AdvancedThemeModalProps> = ({
 
   const handleApplyCustomBg = () => {
     if (customBgUrl) {
+      onSetLocalBgImage(null); // an online URL replaces any locally-picked file
       onUpdateTheme({ canvasImageUrl: customBgUrl, showCanvasImage: true });
     }
+  };
+
+  const applyPickedImageFile = (dataUrl: string) => {
+    onSetLocalBgImage(dataUrl);
+    onUpdateTheme({ showCanvasImage: true });
+  };
+
+  const readFileAsDataUrl = (file: File | Blob): Promise<string> =>
+    new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result as string);
+      reader.onerror = () => reject(reader.error);
+      reader.readAsDataURL(file);
+    });
+
+  const handleBrowseImage = async () => {
+    if (!isDesktopApp()) {
+      webFileInputRef.current?.click();
+      return;
+    }
+
+    setIsBrowsingImage(true);
+    try {
+      const { open } = await import('@tauri-apps/plugin-dialog');
+      const { readFile } = await import('@tauri-apps/plugin-fs');
+      const path = await open({
+        multiple: false,
+        filters: [{ name: 'Images', extensions: ['png', 'jpg', 'jpeg', 'gif', 'webp'] }],
+      });
+      if (!path || Array.isArray(path)) return;
+
+      const bytes = await readFile(path);
+      const extension = path.split('.').pop()?.toLowerCase() || 'png';
+      const mime = extension === 'jpg' ? 'jpeg' : extension;
+      const blob = new Blob([bytes], { type: `image/${mime}` });
+      const dataUrl = await readFileAsDataUrl(blob);
+      applyPickedImageFile(dataUrl);
+    } finally {
+      setIsBrowsingImage(false);
+    }
+  };
+
+  const handleWebFileSelected = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+    const dataUrl = await readFileAsDataUrl(file);
+    applyPickedImageFile(dataUrl);
   };
 
   return (
@@ -194,6 +250,54 @@ export const AdvancedThemeModal: React.FC<AdvancedThemeModalProps> = ({
             </div>
           </div>
 
+          {/* Typography & Background Fine-Tuning */}
+          <div className="grid grid-cols-2 gap-x-4 gap-y-3 pt-2 border-t border-border-subtle">
+            <SliderControl
+              label="Heading Boldness"
+              value={theme.headingWeight ?? 700}
+              display={String(theme.headingWeight ?? 700)}
+              min={300}
+              max={900}
+              step={100}
+              lowLabel="Lighter"
+              highLabel="Bolder"
+              onChange={(v) => onUpdateTheme({ headingWeight: v })}
+            />
+            <SliderControl
+              label="Heading Size"
+              value={theme.headingScale ?? 1}
+              display={`${Math.round((theme.headingScale ?? 1) * 100)}%`}
+              min={0.85}
+              max={1.2}
+              step={0.01}
+              lowLabel="Smaller"
+              highLabel="Larger"
+              onChange={(v) => onUpdateTheme({ headingScale: v })}
+            />
+            <SliderControl
+              label="Link Text Size"
+              value={theme.linkTextScale ?? 1}
+              display={`${Math.round((theme.linkTextScale ?? 1) * 100)}%`}
+              min={0.85}
+              max={1.2}
+              step={0.01}
+              lowLabel="Smaller"
+              highLabel="Larger"
+              onChange={(v) => onUpdateTheme({ linkTextScale: v })}
+            />
+            <SliderControl
+              label="Background Overlay"
+              value={theme.bgOverlayOpacity ?? 0.65}
+              display={`${Math.round((theme.bgOverlayOpacity ?? 0.65) * 100)}%`}
+              min={0}
+              max={1}
+              step={0.05}
+              lowLabel="Transparent"
+              highLabel="Solid"
+              onChange={(v) => onUpdateTheme({ bgOverlayOpacity: v })}
+            />
+          </div>
+
           {/* Preset Wallpapers */}
           <div className="flex flex-col gap-2">
             <label className="text-[11px] font-bold text-text-muted uppercase tracking-wider">
@@ -201,12 +305,15 @@ export const AdvancedThemeModal: React.FC<AdvancedThemeModalProps> = ({
             </label>
             <div className="grid grid-cols-2 gap-2.5">
               {SAMPLE_CANVAS_WALLPAPERS.map((wp) => {
-                const isSelected = theme.canvasImageUrl === wp.url;
+                const isSelected = !localBgImage && theme.canvasImageUrl === wp.url;
                 return (
                   <button
                     key={wp.name}
                     type="button"
-                    onClick={() => onUpdateTheme({ canvasImageUrl: wp.url, showCanvasImage: true })}
+                    onClick={() => {
+                      onSetLocalBgImage(null);
+                      onUpdateTheme({ canvasImageUrl: wp.url, showCanvasImage: true });
+                    }}
                     className={`relative h-20 rounded-xl overflow-hidden border-2 transition-all text-left p-2 flex flex-col justify-end ${
                       isSelected ? 'border-border-focus ring-2 ring-border-focus/30 shadow-xs' : 'border-border-subtle opacity-80 hover:opacity-100'
                     }`}
@@ -222,27 +329,60 @@ export const AdvancedThemeModal: React.FC<AdvancedThemeModalProps> = ({
             </div>
           </div>
 
-          {/* Custom Canvas Image URL */}
+          {/* Custom Canvas Image: online URL or a local file */}
           <div className="flex flex-col gap-2">
             <label className="text-[11px] font-bold text-text-muted uppercase tracking-wider">
-              Custom Wallpaper Image URL
+              Custom Wallpaper Image
             </label>
             <div className="flex gap-2">
               <input
                 type="url"
                 value={customBgUrl}
                 onChange={(e) => setCustomBgUrl(e.target.value)}
-                placeholder="https://images.unsplash.com/..."
+                placeholder="Paste an image URL…"
                 className="flex-1 px-3 py-2 bg-surface border border-border-main rounded-xl text-xs text-text-main"
               />
               <button
                 type="button"
                 onClick={handleApplyCustomBg}
-                className="px-3 py-2 bg-brand text-text-inverse text-xs font-semibold rounded-xl hover:bg-brand-hover transition-colors"
+                className="px-3 py-2 bg-brand text-text-inverse text-xs font-semibold rounded-xl hover:bg-brand-hover transition-colors whitespace-nowrap"
               >
                 Set Image
               </button>
             </div>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={handleBrowseImage}
+                disabled={isBrowsingImage}
+                className="flex-1 py-2 px-3 rounded-xl border border-border-main text-text-main hover:bg-surface-hover text-xs font-semibold transition-colors flex items-center justify-center gap-1.5 disabled:opacity-60"
+              >
+                <span className="material-symbols-outlined text-sm">folder_open</span>
+                {isBrowsingImage ? 'Opening…' : 'Browse for a local image…'}
+              </button>
+              {localBgImage && (
+                <button
+                  type="button"
+                  onClick={() => onSetLocalBgImage(null)}
+                  title="Remove local image"
+                  className="p-2 rounded-xl border border-border-main text-text-subtle hover:text-danger hover:bg-surface-hover transition-colors"
+                >
+                  <span className="material-symbols-outlined text-sm">close</span>
+                </button>
+              )}
+              <input
+                ref={webFileInputRef}
+                type="file"
+                accept="image/*"
+                onChange={handleWebFileSelected}
+                className="hidden"
+              />
+            </div>
+            {localBgImage && (
+              <p className="text-[10.5px] text-text-muted">
+                Using a local image on this device. It won't sync to your other devices.
+              </p>
+            )}
           </div>
 
           {/* Glass Card Opacity */}
@@ -284,3 +424,47 @@ export const AdvancedThemeModal: React.FC<AdvancedThemeModalProps> = ({
     </div>
   );
 };
+
+interface SliderControlProps {
+  label: string;
+  value: number;
+  display: string;
+  min: number;
+  max: number;
+  step: number;
+  lowLabel: string;
+  highLabel: string;
+  onChange: (value: number) => void;
+}
+
+const SliderControl: React.FC<SliderControlProps> = ({
+  label,
+  value,
+  display,
+  min,
+  max,
+  step,
+  lowLabel,
+  highLabel,
+  onChange,
+}) => (
+  <div className="flex flex-col gap-1.5">
+    <div className="flex justify-between items-center text-xs font-semibold">
+      <span className="text-text-main">{label}</span>
+      <span className="font-mono text-text-muted">{display}</span>
+    </div>
+    <input
+      type="range"
+      min={min}
+      max={max}
+      step={step}
+      value={value}
+      onChange={(e) => onChange(Number(e.target.value))}
+      className="w-full accent-brand cursor-pointer"
+    />
+    <div className="flex justify-between text-[10px] text-text-muted">
+      <span>{lowLabel}</span>
+      <span>{highLabel}</span>
+    </div>
+  </div>
+);

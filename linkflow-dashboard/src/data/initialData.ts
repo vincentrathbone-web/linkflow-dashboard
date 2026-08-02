@@ -9,6 +9,10 @@ export const DEFAULT_THEME: ThemeConfig = {
   canvasImageUrl: 'https://lh3.googleusercontent.com/aida-public/AB6AXuDI6TsunvrSXD3JaQKURKOHhEzhps-ml3zmQQRxI-j2wdojd65ujx86eVBU0WwEi4CcTjc7vRmAzqFnAp-OutozPwOk-GwPnVa4-o41xkv1p_v7eHbZMnxCNVAlAvUBEBD6Bh1Fo13u4eacnlHSHe8GeOZ-Ea-AIY7CFvlwBNT3ZEog5wLdTIvFVxTHtmAQ-b2zANVBySZJhurkGXzqr91vtu5TYIhR3PqQgu0aMuI6YAbmBe5fEtF1',
   cardOpacity: 0.85,
   fontPairId: DEFAULT_FONT_PAIR_ID,
+  headingWeight: 700,
+  headingScale: 1,
+  linkTextScale: 1,
+  bgOverlayOpacity: 0.65,
 };
 
 export const INITIAL_SECTIONS: LinkSection[] = [

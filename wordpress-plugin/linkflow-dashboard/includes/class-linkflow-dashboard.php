@@ -348,6 +348,7 @@ class LinkFlow_Dashboard {
 		);
 
 		LinkFlow_Google::register_routes();
+		LinkFlow_Updates::register_routes();
 
 		register_rest_route(
 			'linkflow/v1',
@@ -1238,6 +1239,11 @@ class LinkFlow_Dashboard {
 				'showCanvasImage' => ! empty( $theme['showCanvasImage'] ),
 				'canvasImageUrl' => isset( $theme['canvasImageUrl'] ) ? esc_url_raw( $theme['canvasImageUrl'] ) : '',
 				'cardOpacity'    => min( 1, max( 0.2, isset( $theme['cardOpacity'] ) ? (float) $theme['cardOpacity'] : 0.85 ) ),
+				'fontPairId'     => isset( $theme['fontPairId'] ) ? sanitize_key( $theme['fontPairId'] ) : '',
+				'headingWeight'  => min( 900, max( 300, isset( $theme['headingWeight'] ) ? absint( $theme['headingWeight'] ) : 700 ) ),
+				'headingScale'   => min( 1.2, max( 0.85, isset( $theme['headingScale'] ) ? (float) $theme['headingScale'] : 1 ) ),
+				'linkTextScale'  => min( 1.2, max( 0.85, isset( $theme['linkTextScale'] ) ? (float) $theme['linkTextScale'] : 1 ) ),
+				'bgOverlayOpacity' => min( 1, max( 0, isset( $theme['bgOverlayOpacity'] ) ? (float) $theme['bgOverlayOpacity'] : 0.65 ) ),
 			),
 		);
 	}

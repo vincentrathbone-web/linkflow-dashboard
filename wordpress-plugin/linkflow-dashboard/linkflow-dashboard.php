@@ -21,6 +21,7 @@ define( 'LINKFLOW_DASHBOARD_URL', plugin_dir_url( __FILE__ ) );
 require_once LINKFLOW_DASHBOARD_DIR . 'includes/class-linkflow-dashboard.php';
 require_once LINKFLOW_DASHBOARD_DIR . 'includes/class-linkflow-google.php';
 require_once LINKFLOW_DASHBOARD_DIR . 'includes/class-linkflow-settings.php';
+require_once LINKFLOW_DASHBOARD_DIR . 'includes/class-linkflow-updates.php';
 
 register_activation_hook( __FILE__, array( 'LinkFlow_Dashboard', 'activate' ) );
 add_action( 'plugins_loaded', array( 'LinkFlow_Dashboard', 'instance' ) );

@@ -69,6 +69,11 @@
    * defaults for first paint. */
   --font-body: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
   --font-heading: 'Outfit', 'Plus Jakarta Sans', sans-serif;
+
+  /* Overridden at runtime from theme.headingWeight/headingScale/linkTextScale (see App.tsx). */
+  --font-weight-heading: 700;
+  --heading-scale: 1;
+  --link-text-scale: 1;
 }
 
 .dark {
@@ -107,6 +112,20 @@
 
   h1, h2, h3, h4, .font-heading {
     font-family: var(--font-heading);
+    /* !important overrides the Tailwind font-bold utility already present
+     * inline on most heading elements, so the boldness slider actually takes
+     * effect without having to strip that class from every component. */
+    font-weight: var(--font-weight-heading) !important;
+    transform: scale(var(--heading-scale));
+    transform-origin: left center;
+  }
+
+  .link-text-scale {
+    /* No display override: applied to elements that already set their own
+     * display (e.g. line-clamp's -webkit-box), which transform doesn't
+     * disturb. */
+    transform: scale(var(--link-text-scale));
+    transform-origin: left center;
   }
 }
 

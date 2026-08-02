@@ -23,6 +23,7 @@ import { hasCloudBackend, loadWorkspace, saveWorkspace, WorkspaceDocument } from
 import { currentUser, isDesktopApp, restoreDesktopSession, signOut } from './lib/linkflowApi';
 import { DesktopSignIn } from './components/DesktopSignIn';
 import { OnboardingWizard } from './components/onboarding/OnboardingWizard';
+import { UpdateBanner } from './components/UpdateBanner';
 import { describeWorkspace, logSync, textFingerprint } from './lib/syncDiagnostics';
 
 const ONBOARDING_KEY = 'linkflow_onboarding_done';
@@ -226,6 +227,26 @@ export default function App() {
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isAdvancedThemeOpen, setIsAdvancedThemeOpen] = useState(false);
 
+  // A locally-picked background image (Browse... in Advanced Customization).
+  // This never syncs to the cloud: a data: URI can't survive the server's
+  // URL sanitizer, and a local file path only makes sense on this one
+  // device anyway. Kept in localStorage, separate from theme.canvasImageUrl.
+  const [localBgImage, setLocalBgImageState] = useState<string | null>(() => localStorage.getItem('linkflow_local_bg_image'));
+  const handleSetLocalBgImage = (dataUrl: string | null) => {
+    setLocalBgImageState(dataUrl);
+    try {
+      if (dataUrl) {
+        localStorage.setItem('linkflow_local_bg_image', dataUrl);
+      } else {
+        localStorage.removeItem('linkflow_local_bg_image');
+      }
+    } catch {
+      // Image too large for localStorage's quota. It still applies for this
+      // session (state is already set above); it just won't persist across
+      // a reload.
+    }
+  };
+
   // Sync state to localStorage
   useEffect(() => {
     const serialized = JSON.stringify(sections);
@@ -280,6 +301,9 @@ export default function App() {
     const fontPair = getFontPair(theme.fontPairId);
     document.documentElement.style.setProperty('--font-heading', fontPair.heading);
     document.documentElement.style.setProperty('--font-body', fontPair.body);
+    document.documentElement.style.setProperty('--font-weight-heading', String(theme.headingWeight ?? 700));
+    document.documentElement.style.setProperty('--heading-scale', String(theme.headingScale ?? 1));
+    document.documentElement.style.setProperty('--link-text-scale', String(theme.linkTextScale ?? 1));
     const fontHref = buildGoogleFontsUrl(fontPair);
     let fontLink = document.getElementById('linkflow-font-link') as HTMLLinkElement | null;
     if (!fontLink) {
@@ -575,7 +599,7 @@ export default function App() {
   const isDark = theme.preset === 'dark';
   const bgStyle = theme.showCanvasImage
     ? {
-        backgroundImage: `url('${theme.canvasImageUrl}')`,
+        backgroundImage: `url('${localBgImage || theme.canvasImageUrl}')`,
         backgroundSize: 'cover',
         backgroundPosition: 'center',
         backgroundAttachment: 'fixed',
@@ -640,6 +664,8 @@ export default function App() {
 
   return (
     <div className={`min-h-screen relative text-text-main ${isDark ? 'dark' : ''}`}>
+      <UpdateBanner />
+
       {/* Background Canvas Layer */}
       <div
         className="fixed inset-0 z-[-1] pointer-events-none transition-all duration-300"
@@ -653,7 +679,9 @@ export default function App() {
           style={{
             backdropFilter: `blur(${theme.bgBlur * 0.4}px)`,
             WebkitBackdropFilter: `blur(${theme.bgBlur * 0.4}px)`,
-            backgroundColor: isDark ? 'rgba(15, 23, 42, 0.75)' : 'rgba(248, 250, 252, 0.65)',
+            backgroundColor: isDark
+              ? `rgba(15, 23, 42, ${theme.bgOverlayOpacity ?? 0.65})`
+              : `rgba(248, 250, 252, ${theme.bgOverlayOpacity ?? 0.65})`,
           }}
         />
       )}
@@ -796,6 +824,8 @@ export default function App() {
         theme={theme}
         onUpdateTheme={handleUpdateTheme}
         onResetTheme={handleResetTheme}
+        localBgImage={localBgImage}
+        onSetLocalBgImage={handleSetLocalBgImage}
       />
     </div>
   );

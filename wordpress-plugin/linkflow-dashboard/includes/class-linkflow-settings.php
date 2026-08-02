@@ -14,6 +14,7 @@ defined( 'ABSPATH' ) || exit;
 class LinkFlow_Settings {
 
 	const OPTION_YOUVERSION_APP_KEY = 'linkflow_youversion_app_key';
+	const OPTION_GITHUB_RELEASE_TOKEN = 'linkflow_github_release_token';
 
 	/**
 	 * Set up WordPress hooks.
@@ -30,6 +31,15 @@ class LinkFlow_Settings {
 	 */
 	public static function get_youversion_app_key() {
 		return trim( (string) get_option( self::OPTION_YOUVERSION_APP_KEY, '' ) );
+	}
+
+	/**
+	 * Get the configured GitHub fine-grained access token, if any.
+	 *
+	 * @return string
+	 */
+	public static function get_github_release_token() {
+		return trim( (string) get_option( self::OPTION_GITHUB_RELEASE_TOKEN, '' ) );
 	}
 
 	/**
@@ -79,6 +89,33 @@ class LinkFlow_Settings {
 			'linkflow-dashboard-settings',
 			'linkflow_dashboard_integrations'
 		);
+
+		register_setting(
+			'linkflow_dashboard_settings',
+			self::OPTION_GITHUB_RELEASE_TOKEN,
+			array(
+				'type'              => 'string',
+				'sanitize_callback' => 'sanitize_text_field',
+				'default'           => '',
+			)
+		);
+
+		add_settings_section(
+			'linkflow_dashboard_updates',
+			__( 'Desktop Auto-Update', 'linkflow-dashboard' ),
+			function () {
+				echo '<p>' . esc_html__( 'Lets the Windows desktop app check for and install new versions published as GitHub Releases on the private linkflow-dashboard repo. WordPress fetches release data server-side using this token, so the token is never shipped inside the app.', 'linkflow-dashboard' ) . '</p>';
+			},
+			'linkflow-dashboard-settings'
+		);
+
+		add_settings_field(
+			self::OPTION_GITHUB_RELEASE_TOKEN,
+			__( 'GitHub Release Token', 'linkflow-dashboard' ),
+			array( $this, 'render_github_token_field' ),
+			'linkflow-dashboard-settings',
+			'linkflow_dashboard_updates'
+		);
 	}
 
 	/**
@@ -95,6 +132,22 @@ class LinkFlow_Settings {
 			esc_attr__( 'Paste the App Key from platform.youversion.com', 'linkflow-dashboard' )
 		);
 		echo '<p class="description">' . esc_html__( 'Free, non-commercial app key from the YouVersion Platform Portal. Stored in the WordPress database; never sent to the browser.', 'linkflow-dashboard' ) . '</p>';
+	}
+
+	/**
+	 * Render the GitHub token input.
+	 *
+	 * @return void
+	 */
+	public function render_github_token_field() {
+		$value = self::get_github_release_token();
+		printf(
+			'<input type="password" autocomplete="off" name="%1$s" id="%1$s" value="%2$s" class="regular-text" placeholder="%3$s" />',
+			esc_attr( self::OPTION_GITHUB_RELEASE_TOKEN ),
+			esc_attr( $value ),
+			esc_attr__( 'github_pat_...', 'linkflow-dashboard' )
+		);
+		echo '<p class="description">' . esc_html__( 'A fine-grained GitHub personal access token, scoped to only the linkflow-dashboard repository with "Contents: Read-only" permission. Create one at github.com/settings/personal-access-tokens/new.', 'linkflow-dashboard' ) . '</p>';
 	}
 
 	/**

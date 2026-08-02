@@ -10,6 +10,10 @@
     "core:webview:allow-create-webview-window",
     "deep-link:default",
     "dialog:allow-save",
+    "dialog:allow-open",
+    "fs:default",
+    "updater:default",
+    "process:allow-restart",
     {
       "identifier": "opener:allow-open-url",
       "allow": [
