@@ -53,7 +53,7 @@
       }
     },
     "updater": {
-      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEY1MjlDNjRGQzlCRTc3NDcKUldSSGQ3N0pUOFlwOVRrQi81R29sS0JoalBOcGNPeWlubzFxTnE2QjJENlBYMEwwcTRyR2pMQ0sK",
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDczOUZDMTIzNENBNUI0OTkKUldTWnRLVk1JOEdmYy9YSEUyZXU5VDF1OUVFVnBhVmVmVCtOcmsraFhMTDVSeDVUcjJ6aVpwc2kK",
       "endpoints": [
         "https://controll.co.za/wp-json/linkflow/v1/desktop/latest-release?current_version={{current_version}}"
       ]
