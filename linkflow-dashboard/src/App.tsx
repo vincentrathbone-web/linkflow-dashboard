@@ -23,6 +23,8 @@ import { hasCloudBackend, loadWorkspace, saveWorkspace, WorkspaceDocument } from
 import { currentUser, isDesktopApp, restoreDesktopSession, signOut } from './lib/linkflowApi';
 import { DesktopSignIn } from './components/DesktopSignIn';
 import { OnboardingWizard } from './components/onboarding/OnboardingWizard';
+import { SortBoard } from './components/onboarding/SortBoard';
+import { WizardLinkDraft } from './lib/parseBulkLinks';
 import { UpdateBanner } from './components/UpdateBanner';
 import { describeWorkspace, logSync, textFingerprint } from './lib/syncDiagnostics';
 
@@ -67,6 +69,7 @@ export default function App() {
   const [signedInUser, setSignedInUser] = useState(() => currentUser());
   const [isSigningOut, setIsSigningOut] = useState(false);
   const [isBulkImportOpen, setIsBulkImportOpen] = useState(false);
+  const [isDashboardSortOpen, setIsDashboardSortOpen] = useState(false);
 
   const handleSignOut = async () => {
     if (isSigningOut) return;
@@ -662,6 +665,66 @@ export default function App() {
     );
   }
 
+  if (isDashboardSortOpen) {
+    // SortBoard only knows a link's id/url/name/sectionId/order (WizardLinkDraft),
+    // so it hands back fresh LinkItem objects with every other field reset to
+    // defaults on completion. Re-hydrate from the real links by id afterward
+    // so favorites, archive state, click counts, etc. survive the round trip —
+    // only sectionId (and array order) actually changed.
+    const activeLinks = links.filter((l) => !l.isArchived);
+    const draftsBySection = new Map<string, LinkItem[]>();
+    activeLinks.forEach((link) => {
+      const bucket = draftsBySection.get(link.sectionId) ?? [];
+      bucket.push(link);
+      draftsBySection.set(link.sectionId, bucket);
+    });
+    const initialDrafts: WizardLinkDraft[] = activeLinks.map((link) => ({
+      id: link.id,
+      url: link.url,
+      name: link.name,
+      sectionId: link.sectionId,
+      order: draftsBySection.get(link.sectionId)!.indexOf(link),
+    }));
+
+    return (
+      <SortBoard
+        initialLinks={initialDrafts}
+        existingSections={sections}
+        title="Sort your links"
+        subtitle="Drag links between sections, or reorder them within one."
+        doneLabel="Done"
+        onCancel={() => setIsDashboardSortOpen(false)}
+        onDone={(newSections, returnedLinks, orderedSectionIds) => {
+          const originalById = new Map(links.map((l) => [l.id, l]));
+          const merged = returnedLinks.map((rl) => {
+            const original = originalById.get(rl.id);
+            return original ? { ...original, sectionId: rl.sectionId } : rl;
+          });
+          const mergedIds = new Set(merged.map((l) => l.id));
+          const untouched = links.filter((l) => !mergedIds.has(l.id));
+
+          // Rebuild the sections array to match the board's final column
+          // order (including any brand-new sections created during this
+          // session), and keep the `order` field consistent with it.
+          const allSectionsById = new Map([...sections, ...newSections].map((s) => [s.id, s]));
+          const reorderedSections = orderedSectionIds
+            .map((id) => allSectionsById.get(id))
+            .filter((s): s is LinkSection => Boolean(s))
+            .map((s, index) => ({ ...s, order: index + 1 }));
+
+          logSync('info', 'lifecycle', 'Dashboard sort mode completed.', {
+            newSectionCount: newSections.length,
+            reorderedLinkCount: merged.length,
+            sectionOrderChanged: reorderedSections.map((s) => s.id).join(',') !== sections.map((s) => s.id).join(','),
+          });
+          setSections(reorderedSections);
+          setLinks([...merged, ...untouched]);
+          setIsDashboardSortOpen(false);
+        }}
+      />
+    );
+  }
+
   return (
     <div className={`min-h-screen relative text-text-main ${isDark ? 'dark' : ''}`}>
       <UpdateBanner />
@@ -745,6 +808,7 @@ export default function App() {
             onToggleFavorite={handleToggleFavorite}
             onArchiveLink={handleArchiveLink}
             onIncrementClick={handleIncrementClick}
+            onOpenSort={() => setIsDashboardSortOpen(true)}
             searchQuery={searchQuery}
           />
         )}

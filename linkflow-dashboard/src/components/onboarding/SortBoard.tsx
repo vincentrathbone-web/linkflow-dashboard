@@ -5,6 +5,7 @@ import { WizardLinkDraft } from '../../lib/parseBulkLinks';
 
 const LAND_EASE = 'cubic-bezier(.25,.7,.2,1)';
 const UNSORTED_SECTION_ID = 'unsorted';
+const COLUMN_DROP_HOLE_ID = '__column_drop_hole__' as const;
 
 interface WizardSectionDraft {
   id: string;
@@ -62,6 +63,23 @@ interface DragSession {
   translateY: number;
   tilt: number;
   snapshot: LayoutSnapshot;
+}
+
+interface ColumnDragSession {
+  sectionId: string;
+  fromIndex: number;
+  targetIndex: number;
+  pointerId: number;
+  startX: number;
+  lastX: number;
+  lastAt: number;
+  velocityX: number;
+  moved: boolean;
+  sourceRect: Rect;
+  translateX: number;
+  tilt: number;
+  columnOrder: string[];
+  columnRects: Map<string, Rect>;
 }
 
 function rectOf(rect: DOMRect): Rect {
@@ -124,11 +142,18 @@ export function SortBoard({
   existingSections = [],
   onDone,
   onCancel,
+  title = 'Sort your links into sections',
+  subtitle = 'Drag cards from Unsorted into a section, or create new sections.',
+  doneLabel = 'Finish setup',
 }: {
   initialLinks: WizardLinkDraft[];
   existingSections?: LinkSection[];
-  onDone: (sections: LinkSection[], links: LinkItem[]) => void;
+  /** orderedSectionIds is every non-"Unsorted" section id (new and existing), in final drag order. */
+  onDone: (sections: LinkSection[], links: LinkItem[], orderedSectionIds: string[]) => void;
   onCancel?: () => void;
+  title?: string;
+  subtitle?: string;
+  doneLabel?: string;
 }) {
   const [sections, setSections] = useState<WizardSectionDraft[]>(() => [
     { id: UNSORTED_SECTION_ID, name: 'Unsorted', icon: 'inbox', color: '#64748b', tint: 'var(--bg-surface-subtle)', border: 'var(--border-subtle)' },
@@ -139,16 +164,20 @@ export function SortBoard({
   ]);
   const [links, setLinks] = useState<WizardLinkDraft[]>(initialLinks);
   const [dragView, setDragView] = useState<DragSession | null>(null);
+  const [columnDragView, setColumnDragView] = useState<ColumnDragSession | null>(null);
   const [reducedMotion, setReducedMotion] = useState(false);
   const [addingSection, setAddingSection] = useState(false);
   const [newSectionName, setNewSectionName] = useState('');
 
   const boardRef = useRef<HTMLDivElement | null>(null);
   const overlayRef = useRef<HTMLDivElement | null>(null);
+  const columnOverlayRef = useRef<HTMLDivElement | null>(null);
   const columnRefs = useRef(new Map<string, HTMLElement>());
   const cardRefs = useRef(new Map<string, HTMLDivElement>());
   const dragRef = useRef<DragSession | null>(null);
+  const columnDragRef = useRef<ColumnDragSession | null>(null);
   const levelTimerRef = useRef<number | null>(null);
+  const columnLevelTimerRef = useRef<number | null>(null);
 
   useEffect(() => {
     const media = window.matchMedia('(prefers-reduced-motion: reduce)');
@@ -395,6 +424,162 @@ export function SortBoard({
     };
   }, [applyOverlayTransform, dragView, links, reducedMotion, targetAt]);
 
+  // Column (section) drag-and-drop — same technique as link cards (overlay
+  // clone, layout snapshot taken at pickup, velocity-derived tilt, WAAPI
+  // landing tween), applied to horizontal column reordering instead. The
+  // "Unsorted" bucket is pinned first and never draggable.
+  const applyColumnOverlayTransform = useCallback(
+    (session: ColumnDragSession) => {
+      if (!columnOverlayRef.current) return;
+      columnOverlayRef.current.style.transform = `translate3d(${session.translateX}px, 0, 0) rotate(${reducedMotion ? 0 : session.tilt}deg) scale(1.015)`;
+    },
+    [reducedMotion],
+  );
+
+  const handleColumnPointerDown = useCallback(
+    (sectionId: string, event: React.PointerEvent<HTMLDivElement>) => {
+      if (event.button !== 0 || dragRef.current || columnDragRef.current) return;
+      event.preventDefault();
+      const source = columnRefs.current.get(sectionId);
+      if (!source) return;
+
+      const draggableIds = sections.filter((s) => s.id !== UNSORTED_SECTION_ID).map((s) => s.id);
+      const fromIndex = draggableIds.indexOf(sectionId);
+      if (fromIndex === -1) return;
+
+      const columnRects = new Map<string, Rect>();
+      columnRefs.current.forEach((node, id) => columnRects.set(id, rectOf(node.getBoundingClientRect())));
+
+      const session: ColumnDragSession = {
+        sectionId,
+        fromIndex,
+        targetIndex: fromIndex,
+        pointerId: event.pointerId,
+        startX: event.clientX,
+        lastX: event.clientX,
+        lastAt: performance.now(),
+        velocityX: 0,
+        moved: false,
+        sourceRect: columnRects.get(sectionId)!,
+        translateX: 0,
+        tilt: 0,
+        columnOrder: draggableIds,
+        columnRects,
+      };
+      columnDragRef.current = session;
+      setColumnDragView({ ...session });
+      requestAnimationFrame(() => applyColumnOverlayTransform(session));
+    },
+    [applyColumnOverlayTransform, sections],
+  );
+
+  useEffect(() => {
+    if (!columnDragView) return;
+
+    const onMove = (event: PointerEvent) => {
+      const session = columnDragRef.current;
+      if (!session || event.pointerId !== session.pointerId) return;
+      event.preventDefault();
+
+      const now = performance.now();
+      const elapsed = Math.max(8, now - session.lastAt);
+      const instantVelocity = ((event.clientX - session.lastX) / elapsed) * 1000;
+      session.velocityX = session.velocityX * 0.65 + instantVelocity * 0.35;
+      session.lastX = event.clientX;
+      session.lastAt = now;
+      session.translateX = event.clientX - session.startX;
+      session.moved ||= Math.abs(session.translateX) > 4;
+      session.tilt = Math.max(-5, Math.min(5, session.velocityX / 170));
+
+      const centerX = session.sourceRect.left + session.sourceRect.width / 2 + session.translateX;
+      let targetIndex = session.columnOrder.length - 1;
+      for (let i = 0; i < session.columnOrder.length; i++) {
+        const rect = session.columnRects.get(session.columnOrder[i]);
+        if (!rect) continue;
+        if (centerX < rect.left + rect.width / 2) {
+          targetIndex = i;
+          break;
+        }
+      }
+      if (targetIndex !== session.targetIndex) {
+        session.targetIndex = targetIndex;
+        setColumnDragView({ ...session });
+      }
+      applyColumnOverlayTransform(session);
+
+      if (columnLevelTimerRef.current) window.clearTimeout(columnLevelTimerRef.current);
+      columnLevelTimerRef.current = window.setTimeout(() => {
+        const current = columnDragRef.current;
+        if (!current) return;
+        current.tilt = 0;
+        if (columnOverlayRef.current) {
+          columnOverlayRef.current.style.transition = reducedMotion ? 'none' : 'transform 110ms ease-out';
+          applyColumnOverlayTransform(current);
+          window.setTimeout(() => {
+            if (columnOverlayRef.current) columnOverlayRef.current.style.transition = 'none';
+          }, 120);
+        }
+      }, 70);
+    };
+
+    const finishColumnDrag = (event: PointerEvent, cancelled = false) => {
+      const session = columnDragRef.current;
+      if (!session || event.pointerId !== session.pointerId) return;
+      if (columnLevelTimerRef.current) window.clearTimeout(columnLevelTimerRef.current);
+
+      if (cancelled || !session.moved || session.targetIndex === session.fromIndex) {
+        columnDragRef.current = null;
+        setColumnDragView(null);
+        return;
+      }
+
+      setSections((prev) => {
+        const unsorted = prev.filter((s) => s.id === UNSORTED_SECTION_ID);
+        const rest = prev.filter((s) => s.id !== UNSORTED_SECTION_ID);
+        const byId = new Map(rest.map((s) => [s.id, s]));
+        const reordered = session.columnOrder.slice();
+        reordered.splice(session.fromIndex, 1);
+        reordered.splice(session.targetIndex, 0, session.sectionId);
+        return [...unsorted, ...reordered.map((id) => byId.get(id)!).filter(Boolean)];
+      });
+
+      const overlay = columnOverlayRef.current;
+      const hole = document.querySelector<HTMLElement>('[data-column-drop-hole="true"]');
+      const targetRect = hole?.getBoundingClientRect();
+      const targetTranslateX = targetRect ? targetRect.left - session.sourceRect.left : session.translateX;
+      const duration = reducedMotion ? 0 : Math.min(280, 160 + Math.abs(targetTranslateX) / 3);
+      const targetTransform = `translate3d(${targetTranslateX}px, 0, 0) rotate(0deg) scale(1)`;
+
+      const completeLanding = () => {
+        columnDragRef.current = null;
+        setColumnDragView(null);
+      };
+      if (overlay && duration > 0) {
+        const animation = overlay.animate(
+          [
+            { transform: overlay.style.transform, boxShadow: '0 16px 32px rgba(15,23,42,.2)' },
+            { transform: targetTransform, boxShadow: '0 1px 2px rgba(15,23,42,.06)' },
+          ],
+          { duration, easing: LAND_EASE, fill: 'forwards' },
+        );
+        animation.finished.then(completeLanding).catch(completeLanding);
+      } else {
+        completeLanding();
+      }
+    };
+
+    const onUp = (event: PointerEvent) => finishColumnDrag(event);
+    const onCancel = (event: PointerEvent) => finishColumnDrag(event, true);
+    window.addEventListener('pointermove', onMove, { passive: false });
+    window.addEventListener('pointerup', onUp);
+    window.addEventListener('pointercancel', onCancel);
+    return () => {
+      window.removeEventListener('pointermove', onMove);
+      window.removeEventListener('pointerup', onUp);
+      window.removeEventListener('pointercancel', onCancel);
+    };
+  }, [applyColumnOverlayTransform, columnDragView, reducedMotion]);
+
   const finish = useCallback(() => {
     const existingIds = new Set(existingSections.map((s) => s.id));
     const usedSections = sections.filter(
@@ -432,15 +617,17 @@ export function SortBoard({
       })),
     );
 
-    onDone(newSections, newLinks);
+    const orderedSectionIds = usedSections.filter((s) => s.id !== UNSORTED_SECTION_ID).map((s) => s.id);
+
+    onDone(newSections, newLinks, orderedSectionIds);
   }, [sections, grouped, onDone, existingSections]);
 
   return (
     <div className="flex min-h-screen flex-col bg-surface p-6">
       <div className="mx-auto mb-5 flex w-full max-w-6xl items-center justify-between">
         <div>
-          <h1 className="font-heading text-xl font-bold text-text-main">Sort your links into sections</h1>
-          <p className="text-xs text-text-muted">Drag cards from Unsorted into a section, or create new sections.</p>
+          <h1 className="font-heading text-xl font-bold text-text-main">{title}</h1>
+          <p className="text-xs text-text-muted">{subtitle}</p>
         </div>
         <div className="flex items-center gap-2">
           {onCancel && (
@@ -449,14 +636,34 @@ export function SortBoard({
             </button>
           )}
           <button onClick={finish} className="rounded-xl bg-brand px-4 py-2.5 text-xs font-semibold text-text-inverse transition hover:bg-brand-hover">
-            Finish setup
+            {doneLabel}
           </button>
         </div>
       </div>
 
       <div ref={boardRef} className="mx-auto w-full max-w-6xl flex-1 overflow-x-auto pb-4">
         <div className="flex h-full min-w-max gap-3">
-          {sections.map((section) => {
+          {(() => {
+            const draggedColumnId = columnDragView?.sectionId;
+            const withoutDragged = draggedColumnId ? sections.filter((s) => s.id !== draggedColumnId) : sections;
+            const unsorted = withoutDragged.filter((s) => s.id === UNSORTED_SECTION_ID);
+            const rest = withoutDragged.filter((s) => s.id !== UNSORTED_SECTION_ID);
+            const items: (WizardSectionDraft | { id: typeof COLUMN_DROP_HOLE_ID })[] = [...unsorted, ...rest];
+            if (columnDragView) {
+              const insertAt = 1 + columnDragView.targetIndex; // +1 to skip the pinned Unsorted column
+              items.splice(insertAt, 0, { id: COLUMN_DROP_HOLE_ID });
+            }
+            return items;
+          })().map((section) => {
+            if (!('name' in section)) {
+              return (
+                <div
+                  key="column-drop-hole"
+                  data-column-drop-hole="true"
+                  style={{ width: 260, flexShrink: 0, borderRadius: 14, border: '1.5px dashed var(--border-focus)', background: 'var(--brand-subtle-color, rgba(59,130,246,.08))' }}
+                />
+              );
+            }
             const cards = grouped[section.id]?.filter((link) => link.id !== dragView?.link.id) ?? [];
             const isTarget = dragView?.target.sectionId === section.id;
             const holeAt = isTarget ? dragView!.target.index : null;
@@ -480,6 +687,15 @@ export function SortBoard({
                 }}
               >
                 <header style={{ padding: '12px 12px 10px', borderTop: `3px solid ${section.color}`, borderBottom: '1px solid var(--border-subtle)', display: 'flex', alignItems: 'center', gap: 8 }}>
+                  {section.id !== UNSORTED_SECTION_ID && (
+                    <div
+                      onPointerDown={(event) => handleColumnPointerDown(section.id, event)}
+                      style={{ cursor: 'grab', touchAction: 'none', display: 'flex', alignItems: 'center' }}
+                      title="Drag to reorder this section"
+                    >
+                      <GripVertical size={14} className="shrink-0 text-text-subtle" />
+                    </div>
+                  )}
                   <div style={{ minWidth: 0, flex: 1 }} className="text-[12.5px] font-semibold text-text-main">
                     {section.name}
                   </div>
@@ -587,6 +803,52 @@ export function SortBoard({
           <LinkCard link={dragView.link} lifted />
         </div>
       )}
+
+      {columnDragView && (() => {
+        const draggedSection = sections.find((s) => s.id === columnDragView.sectionId);
+        if (!draggedSection) return null;
+        const cards = grouped[draggedSection.id] ?? [];
+        return (
+          <div
+            ref={columnOverlayRef}
+            aria-hidden="true"
+            style={{
+              position: 'fixed',
+              zIndex: 900,
+              pointerEvents: 'none',
+              left: columnDragView.sourceRect.left,
+              top: columnDragView.sourceRect.top,
+              width: columnDragView.sourceRect.width,
+              height: columnDragView.sourceRect.height,
+              borderRadius: 14,
+              border: '1px solid #93c5fd',
+              background: 'var(--bg-surface)',
+              boxShadow: '0 16px 32px rgba(15,23,42,.2)',
+              overflow: 'hidden',
+              transformOrigin: '50% 50%',
+              willChange: 'transform',
+            }}
+          >
+            <div style={{ padding: '12px 12px 10px', borderTop: `3px solid ${draggedSection.color}`, borderBottom: '1px solid var(--border-subtle)', display: 'flex', alignItems: 'center', gap: 8 }}>
+              <GripVertical size={14} className="shrink-0 text-text-subtle" />
+              <div style={{ minWidth: 0, flex: 1 }} className="text-[12.5px] font-semibold text-text-main">
+                {draggedSection.name}
+              </div>
+              <span style={{ minWidth: 22, height: 22, borderRadius: 999, display: 'grid', placeItems: 'center', padding: '0 6px', background: draggedSection.tint, color: draggedSection.color, fontSize: 10, fontWeight: 700 }}>
+                {cards.length}
+              </span>
+            </div>
+            <div style={{ padding: 8, display: 'grid', gap: 7 }}>
+              {cards.slice(0, 4).map((link) => (
+                <LinkCard key={link.id} link={link} />
+              ))}
+              {cards.length > 4 && (
+                <div className="text-center text-[10.5px] text-text-subtle">+{cards.length - 4} more</div>
+              )}
+            </div>
+          </div>
+        );
+      })()}
     </div>
   );
 }

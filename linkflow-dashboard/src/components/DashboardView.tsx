@@ -16,6 +16,7 @@ interface DashboardViewProps {
   onToggleFavorite: (id: string) => void;
   onArchiveLink: (id: string) => void;
   onIncrementClick: (id: string) => void;
+  onOpenSort: () => void;
   searchQuery: string;
 }
 
@@ -31,6 +32,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   onToggleFavorite,
   onArchiveLink,
   onIncrementClick,
+  onOpenSort,
   searchQuery,
 }) => {
   const activeLinks = links.filter((l) => !l.isArchived);
@@ -139,6 +141,16 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                     >
                       <span className="material-symbols-outlined text-base">add</span>
                       <span className="hidden sm:inline text-xs">Add Link</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={onOpenSort}
+                      className="px-2 py-1 rounded-md text-text-muted hover:text-text-main hover:bg-surface-subtle transition-colors text-xs font-medium flex items-center gap-1"
+                      title="Sort links across sections"
+                    >
+                      <span className="material-symbols-outlined text-base">swap_vert</span>
+                      <span className="hidden sm:inline text-xs">Sort</span>
                     </button>
 
                     <button
