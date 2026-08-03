@@ -2,7 +2,7 @@
 
 LinkFlow is a private, Windows desktop link workspace. Its React interface is packaged with Tauri and connects directly to the LinkFlow WordPress plugin API; it never renders the WordPress theme or Elementor.
 
-Current desktop version: **0.1.10**. Requires WordPress plugin **0.4.13 or later** for Google sign-in and desktop-initiated sign-out to work (0.4.19 is the paired, live release).
+Current desktop version: **0.1.10**. Requires WordPress plugin **0.4.13 or later** for Google sign-in and desktop-initiated sign-out to work (0.4.27 is the paired, live release). Plugin 0.4.26+ additionally required for the account dropdown to show the signed-in user's email (degrades gracefully to just the display name against older plugin versions).
 
 The app checks for updates on launch via `@tauri-apps/plugin-updater` (see `UpdateBanner.tsx`), against a WordPress-hosted proxy in front of GitHub Releases — see the plugin README's "In-app updates" section for the full path. **Verified working end-to-end** on 2026-08-02: an installed 0.1.8 client detected the published 0.1.9 GitHub Release, downloaded it, installed it, and relaunched successfully.
 

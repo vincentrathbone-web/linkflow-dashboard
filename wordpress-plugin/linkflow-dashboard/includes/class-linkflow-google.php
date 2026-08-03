@@ -198,6 +198,7 @@ class LinkFlow_Google {
 				'token'       => $token,
 				'restUrl'     => esc_url_raw( rest_url( 'linkflow/v1/' ) ),
 				'displayName' => $user->display_name,
+				'email'       => $user->user_email,
 				'userId'      => $user->ID,
 			)
 		);

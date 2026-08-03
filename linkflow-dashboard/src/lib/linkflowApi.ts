@@ -10,6 +10,7 @@ export interface WorkspaceDocument {
 interface LinkFlowUser {
   id: number;
   displayName: string;
+  email?: string;
 }
 
 interface LinkFlowRuntimeConfig {
@@ -70,10 +71,10 @@ interface DesktopSession {
   token: string;
   restUrl: string;
   deviceId: number;
-  user: { id: number; displayName: string };
+  user: LinkFlowUser;
 }
 
-export async function signInToCloud(siteUrl: string, username: string, password: string): Promise<{ id: number; displayName: string }> {
+export async function signInToCloud(siteUrl: string, username: string, password: string): Promise<LinkFlowUser> {
   const requestId = nextRequestId();
   logSync('info', 'authentication', 'Desktop sign-in started.', {
     requestId,
@@ -132,7 +133,7 @@ export async function signInToCloud(siteUrl: string, username: string, password:
   configureCloudBackend(session.restUrl, `Bearer ${session.token}`, session.user);
   try {
     logSync('info', 'authentication', 'Verifying the new device token with GET /me.', { requestId });
-    await request<{ id: number; displayName: string }>('me');
+    await request<LinkFlowUser>('me');
     logSync('success', 'authentication', 'The server accepted the new device token.', {
       requestId,
       user: session.user,
@@ -174,10 +175,7 @@ export async function signInWithGoogle(siteUrl: string): Promise<void> {
   await openUrl(startUrl);
 }
 
-interface GoogleCallbackResult {
-  id: number;
-  displayName: string;
-}
+type GoogleCallbackResult = LinkFlowUser;
 
 export async function completeGoogleSignIn(callbackUrl: string): Promise<GoogleCallbackResult> {
   const requestId = nextRequestId();
@@ -185,6 +183,7 @@ export async function completeGoogleSignIn(callbackUrl: string): Promise<GoogleC
   const token = parsed.searchParams.get('token');
   const restUrl = parsed.searchParams.get('restUrl');
   const displayName = parsed.searchParams.get('displayName') || '';
+  const email = parsed.searchParams.get('email') || undefined;
   const userId = Number(parsed.searchParams.get('userId') || 0);
 
   logSync('info', 'authentication', 'Google sign-in callback received from the system browser.', {
@@ -193,6 +192,7 @@ export async function completeGoogleSignIn(callbackUrl: string): Promise<GoogleC
     tokenLength: token?.length ?? 0,
     restUrl,
     displayName,
+    email,
   });
 
   if (!token || !restUrl) {
@@ -200,11 +200,11 @@ export async function completeGoogleSignIn(callbackUrl: string): Promise<GoogleC
     throw new Error('Google sign-in did not complete correctly. Please try again.');
   }
 
-  configureCloudBackend(restUrl, `Bearer ${token}`, { id: userId, displayName });
+  configureCloudBackend(restUrl, `Bearer ${token}`, { id: userId, displayName, email });
 
   try {
     logSync('info', 'authentication', 'Verifying the Google-issued device token with GET /me.', { requestId });
-    await request<{ id: number; displayName: string }>('me');
+    await request<LinkFlowUser>('me');
     logSync('success', 'authentication', 'The server accepted the Google-issued device token.', { requestId, userId, displayName });
   } catch (error) {
     window.linkflowConfig = undefined;
@@ -224,7 +224,7 @@ export async function completeGoogleSignIn(callbackUrl: string): Promise<GoogleC
     logSync('success', 'authentication', 'Desktop session saved in Windows Credential Manager.', { requestId });
   }
 
-  return { id: userId, displayName };
+  return { id: userId, displayName, email };
 }
 
 export async function restoreDesktopSession(): Promise<boolean> {
@@ -248,7 +248,7 @@ export async function restoreDesktopSession(): Promise<boolean> {
   configureCloudBackend(session.rest_url, `Bearer ${session.token}`);
 
   try {
-    const user = await request<{ id: number; displayName: string }>('me');
+    const user = await request<LinkFlowUser>('me');
     if (window.linkflowConfig) window.linkflowConfig.user = user;
   } catch (error) {
     logSync('warning', 'authentication', 'Could not fetch the signed-in user profile after restoring the session.', { error });

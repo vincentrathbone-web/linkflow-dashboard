@@ -781,6 +781,7 @@ export default function App() {
         searchQuery={searchQuery}
         onSearchChange={setSearchQuery}
         userDisplayName={signedInUser?.displayName}
+        userEmail={signedInUser?.email}
         onSignOut={handleSignOut}
         onOpenDiagnostics={() => void openDiagnosticsWindow()}
         hasSections={sections.length > 0}
@@ -789,7 +790,7 @@ export default function App() {
       />
 
       {/* Main Screen Views */}
-      <main className="min-h-screen flex flex-col">
+      <main className="min-h-screen flex flex-col" style={{ paddingTop: 'var(--host-chrome-offset, 0px)' }}>
         {syncError && (
           <div className="fixed bottom-4 right-4 z-50 max-w-sm rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-xs font-medium text-amber-900 shadow-lg">
             {syncError}

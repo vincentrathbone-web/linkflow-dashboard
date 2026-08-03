@@ -8,8 +8,23 @@
  * inheritance is cut here its utilities also win any remaining specificity
  * fight against page-builder CSS. `isolation: isolate` gives the subtree its
  * own stacking context so Elementor's own overlays/animations cannot land
- * between the app's layers, and `contain: layout style` stops the app's
- * layout from being read by, or reading, anything outside it.
+ * between the app's layers. `contain: style` scopes counter/quote state to
+ * the subtree without the `layout` containment value — deliberately not
+ * used here even though it would further isolate the app's layout from being
+ * read by/reading the surrounding page, because `contain: layout` (and
+ * `paint`/`strict`/`content`) makes this element the *containing block* for
+ * every `position: fixed` descendant inside it, instead of the true browser
+ * viewport. That broke two different things at once before this was found:
+ * the Cat companion's full-viewport overlay computing its floor against this
+ * root's own (admin-bar-shifted, 100vh-vs-content-height-mismatched) box
+ * instead of the real viewport bottom, and — worse — every `fixed inset-0`
+ * modal in the app (AdvancedThemeModal, etc.) centering itself against this
+ * root's full scrollable content height rather than the visible screen, so a
+ * modal could render most of a page-length below the fold on any page with
+ * enough dashboard content to scroll. Both symptoms disappeared entirely
+ * once `layout` was dropped from `contain` — no admin-bar-specific
+ * compensation CSS is needed at all once `position: fixed` is left free to
+ * track the true viewport like normal.
  *
  * `all` does not reset custom properties (CSS variables) — this is required
  * here, since the app's entire theme system (accent color, fonts, dark mode)
@@ -26,9 +41,52 @@
 	all: initial;
 	display: block;
 	isolation: isolate;
-	contain: layout style;
+	contain: style;
 	min-height: 100vh;
-	font-family: var(--font-sans, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif);
+	/*
+	 * MUST reference --font-body (the variable App.tsx actually sets on
+	 * <html> from the user's chosen font pair — see fontPairId handling),
+	 * not a standalone fallback stack. This property is inherited, and this
+	 * is the root of the whole app subtree, so every descendant that
+	 * doesn't set its own font-family (buttons, links, nav text, the Daily
+	 * Inspiration quote, etc. — everything except h1-h4/.font-heading,
+	 * which reference --font-heading directly on themselves) gets its font
+	 * from here. An earlier fix (0.4.21) used `var(--font-sans, ...)`
+	 * instead, a variable nothing ever sets — so it silently always fell
+	 * through to the static fallback, and switching font pairs appeared to
+	 * only affect headings while every other line of text stayed frozen on
+	 * the fallback font. The fallback list only matters for the brief
+	 * window before App.tsx's own setProperty calls run.
+	 */
+	font-family: var(--font-body, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif);
+}
+
+/*
+ * Now that `position: fixed` descendants correctly track the TRUE browser
+ * viewport (see the `contain` note above), TopNavBar's own `fixed` top bar
+ * — which deliberately pins itself to "the top of the app", not to a
+ * viewport-centered overlay like a modal — needs to know when WordPress's
+ * admin toolbar is covering that same true-viewport top edge, or it renders
+ * partly hidden behind/under it. `--host-chrome-offset` is consumed
+ * directly by TopNavBar.tsx (`top: var(--host-chrome-offset, 0px)`) and by
+ * App.tsx's `<main>` (extra `padding-top` of the same amount, so the
+ * existing per-view `pt-22` spacing under the nav is preserved rather than
+ * partly eaten by the nav's own downward shift). Custom properties survive
+ * `all: initial` and inherit normally, so defining this on `body` reaches
+ * every descendant that needs it.
+ */
+body {
+	--host-chrome-offset: 0px;
+}
+
+body.admin-bar {
+	--host-chrome-offset: 32px;
+}
+
+@media screen and (max-width: 782px) {
+	body.admin-bar {
+		--host-chrome-offset: 46px;
+	}
 }
 
 #linkflow-dashboard-root,
@@ -36,4 +94,58 @@
 #linkflow-dashboard-root *::before,
 #linkflow-dashboard-root *::after {
 	box-sizing: border-box;
+}
+
+/*
+ * `all: initial` above only resets the root element itself, not its
+ * descendants — so native <button>/<a>/<input> elements deep inside still
+ * pick up whatever the WordPress theme or Elementor sets globally on those
+ * tags (a border, a hover background/box-shadow, a different line-height).
+ * Tailwind's own preflight normally strips that native chrome, but Tailwind
+ * v4's `important` import (src/index.css) only forces `!important` onto
+ * utility classes, not the base/preflight layer — so preflight's button/link
+ * reset has no `!important` and loses to the theme's rule whenever the
+ * theme's stylesheet happens to load later in the page (which is common,
+ * since page-builder/theme CSS is often enqueued with a later priority than
+ * a plugin's). This surfaced as: a visible border on nav buttons, a pink/red
+ * hover background on the Daily Inspiration button, and off-center avatar
+ * initials (theme line-height inflating the button's inline box). Force the
+ * same reset here with `!important` so load order can no longer matter.
+ */
+#linkflow-dashboard-root button,
+#linkflow-dashboard-root input,
+#linkflow-dashboard-root select,
+#linkflow-dashboard-root textarea {
+	font: inherit !important;
+	color: inherit !important;
+	line-height: inherit !important;
+	background: none !important;
+	border: none !important;
+	border-radius: 0 !important;
+	box-shadow: none !important;
+	outline: none !important;
+	padding: 0 !important;
+	margin: 0 !important;
+	appearance: none !important;
+	-webkit-appearance: none !important;
+}
+
+#linkflow-dashboard-root a {
+	color: inherit !important;
+	text-decoration: none !important;
+	background: none !important;
+	border: none !important;
+	box-shadow: none !important;
+}
+
+#linkflow-dashboard-root button:hover,
+#linkflow-dashboard-root button:focus,
+#linkflow-dashboard-root button:focus-visible,
+#linkflow-dashboard-root a:hover,
+#linkflow-dashboard-root a:focus,
+#linkflow-dashboard-root a:focus-visible {
+	background: inherit;
+	border: inherit;
+	box-shadow: inherit;
+	outline: none !important;
 }

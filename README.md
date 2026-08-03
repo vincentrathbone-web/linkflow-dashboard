@@ -12,12 +12,14 @@ There are no public workspaces, public URLs, or shared tabs.
 
 | Component | Version | Source |
 | --- | ---: | --- |
-| WordPress plugin | 0.4.21 (live on `controll.co.za`) | `wordpress-plugin/linkflow-dashboard/` |
+| WordPress plugin | 0.4.27 (live on `controll.co.za`) | `wordpress-plugin/linkflow-dashboard/` |
 | Windows desktop app | 0.1.10 | `linkflow-dashboard/src-tauri/` |
 
 Source is hosted on GitHub: [`vincentrathbone-web/linkflow-dashboard`](https://github.com/vincentrathbone-web/linkflow-dashboard) (private repo).
 
 The desktop app authenticates once with the user's normal WordPress credentials. The plugin exchanges them for a LinkFlow-only device token. The raw token is stored in Windows Credential Manager; WordPress stores only its SHA-256 hash.
+
+The account dropdown (both clients) shows the signed-in user's email under their display name, so accounts sharing a display name (e.g. duplicate test accounts) can still be told apart.
 
 ## Cloud write contract
 
@@ -72,7 +74,7 @@ From the workspace root, build the WordPress release ZIP:
 
 The plugin slug and version come from `wordpress-plugin/linkflow-dashboard/package.json`. Upload the versioned release ZIP, `dist/linkflow-dashboard-vX.Y.Z.zip`, to WordPress. Its filename identifies the release, while the packager requires exactly one unversioned `linkflow-dashboard/` root, forward-slash ZIP paths, and the canonical `linkflow-dashboard/linkflow-dashboard.php` main file.
 
-See [HANDOVER.md](./HANDOVER.md) for architecture, release instructions, operational notes, and lessons learned.
+See [HANDOVER.md](./HANDOVER.md) for architecture, release instructions, operational notes, and lessons learned. See [block-elementor.md](./block-elementor.md) for the general, project-agnostic writeup of every WordPress/Elementor-hosted-page isolation bug fixed here (font/icon loading, native-control style bleed, the WP-admin-bar viewport-height trap, and the CSS-cascade-layers `!important` gotcha) — reusable checklist for embedding any JS app in a WordPress page.
 
 ## Release discipline
 
@@ -83,3 +85,4 @@ Every release must update the applicable version declarations and these document
 - `wordpress-plugin/linkflow-dashboard/README.md`
 - `HANDOVER.md`
 - `AGENTS.md` when process or architectural rules change
+- `block-elementor.md` when a new general WordPress/Elementor-embedding lesson is learned (keep it project-agnostic; project-specific detail belongs in the plugin README/HANDOVER instead)

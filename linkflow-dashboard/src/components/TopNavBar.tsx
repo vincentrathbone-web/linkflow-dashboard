@@ -15,6 +15,7 @@ interface TopNavBarProps {
   searchQuery: string;
   onSearchChange: (q: string) => void;
   userDisplayName?: string;
+  userEmail?: string;
   onSignOut: () => void;
   onOpenDiagnostics: () => void;
   hasSections: boolean;
@@ -35,6 +36,7 @@ export const TopNavBar: React.FC<TopNavBarProps> = ({
   searchQuery,
   onSearchChange,
   userDisplayName,
+  userEmail,
   onSignOut,
   onOpenDiagnostics,
   hasSections,
@@ -74,7 +76,10 @@ export const TopNavBar: React.FC<TopNavBarProps> = ({
   ];
 
   return (
-    <nav className="fixed top-0 w-full z-40 bg-surface border-b border-border-main shadow-xs transition-colors duration-200">
+    <nav
+      className="fixed w-full z-40 bg-surface border-b border-border-main shadow-xs transition-colors duration-200"
+      style={{ top: 'var(--host-chrome-offset, 0px)' }}
+    >
       <div className="flex justify-between items-center h-16 px-4 md:px-8 max-w-7xl mx-auto">
         {/* Brand & Main Nav */}
         <div className="flex items-center gap-6 md:gap-8">
@@ -260,7 +265,12 @@ export const TopNavBar: React.FC<TopNavBarProps> = ({
             {isUserMenuOpen && (
               <div className="absolute right-0 mt-2 w-56 glass-panel rounded-xl shadow-xl border border-border-main p-1.5 z-50 flex flex-col gap-1 animate-in fade-in zoom-in-95 duration-150">
                 {userDisplayName && (
-                  <div className="px-3 py-2 text-xs font-medium text-text-muted truncate">{userDisplayName}</div>
+                  <div className="px-3 py-2">
+                    <div className="text-xs font-medium text-text-main truncate">{userDisplayName}</div>
+                    {userEmail && (
+                      <div className="text-[10.5px] font-normal text-text-subtle truncate mt-0.5">{userEmail}</div>
+                    )}
+                  </div>
                 )}
                 <button
                   onClick={() => {
