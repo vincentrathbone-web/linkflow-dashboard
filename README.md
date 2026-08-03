@@ -12,7 +12,7 @@ There are no public workspaces, public URLs, or shared tabs.
 
 | Component | Version | Source |
 | --- | ---: | --- |
-| WordPress plugin | 0.4.19 (live on `controll.co.za`) | `wordpress-plugin/linkflow-dashboard/` |
+| WordPress plugin | 0.4.21 (live on `controll.co.za`) | `wordpress-plugin/linkflow-dashboard/` |
 | Windows desktop app | 0.1.10 | `linkflow-dashboard/src-tauri/` |
 
 Source is hosted on GitHub: [`vincentrathbone-web/linkflow-dashboard`](https://github.com/vincentrathbone-web/linkflow-dashboard) (private repo).

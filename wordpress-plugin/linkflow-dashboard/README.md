@@ -1,6 +1,6 @@
 # LinkFlow Dashboard WordPress Plugin
 
-Current version: **0.4.19**, live on `controll.co.za`.
+Current version: **0.4.21**, live on `controll.co.za`.
 
 LinkFlow provides a closed, authenticated cloud workspace for the hosted React interface and Windows desktop client. Each WordPress user has an isolated workspace and up to 20 recoverable revisions. There are no public or shared workspace endpoints.
 
@@ -62,6 +62,13 @@ Run `./package.ps1` from the workspace root. It reads the slug/version from this
 This is the canonical plugin changelog. The desktop client keeps its own in
 [`linkflow-dashboard/README.md`](../../linkflow-dashboard/README.md); where a plugin release shipped
 alongside a desktop release, the pairing is noted here.
+
+### 2026-08-03
+
+- **0.4.21:** Two Elementor/theme-isolation gaps fixed, both only visible on the WordPress-hosted page (not the desktop client, which loads fonts via `index.html`):
+  - `css/isolation.css`'s `all: initial` reset on `#linkflow-dashboard-root` left `font-family` unset, so text fell back to the browser's default serif (Times New Roman) until Tailwind's bundle CSS finished applying. Added an explicit `font-family: var(--font-sans, ...)` fallback on the root.
+  - The app's icon markup is Material Symbols ligature text (e.g. `close`, `search`) that only renders as a glyph once the `Material Symbols Outlined` webfont has loaded. The desktop build gets that font from a `<link>` in `index.html`, but WordPress enqueues the built bundle directly and never loads `index.html`, so on the hosted page the icon text rendered literally instead of as icons. `enqueue_app()` now also enqueues the Material Symbols Google Fonts stylesheet directly.
+- **0.4.20:** Packaging bump only, superseded by 0.4.21 above (never deployed).
 
 ### 2026-08-02
 

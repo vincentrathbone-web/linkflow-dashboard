@@ -2,7 +2,7 @@
 /**
  * Plugin Name: LinkFlow Dashboard
  * Description: Cloud-backed personal link workspaces for WordPress and desktop clients.
- * Version: 0.4.19
+ * Version: 0.4.21
  * Requires at least: 6.4
  * Requires PHP: 7.4
  * Author: Controll
@@ -12,7 +12,7 @@
 
 defined( 'ABSPATH' ) || exit;
 
-define( 'LINKFLOW_DASHBOARD_VERSION', '0.4.19' );
+define( 'LINKFLOW_DASHBOARD_VERSION', '0.4.21' );
 define( 'LINKFLOW_DASHBOARD_DB_VERSION', '1' );
 define( 'LINKFLOW_DASHBOARD_FILE', __FILE__ );
 define( 'LINKFLOW_DASHBOARD_DIR', plugin_dir_path( __FILE__ ) );

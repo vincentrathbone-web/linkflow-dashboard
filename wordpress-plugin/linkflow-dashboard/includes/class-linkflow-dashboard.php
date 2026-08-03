@@ -302,13 +302,39 @@ class LinkFlow_Dashboard {
 			return;
 		}
 
+		// Isolation wrapper (all: initial / isolation: isolate / contain) for
+		// #linkflow-dashboard-root — see css/isolation.css. Enqueued as a
+		// dependency of every bundle stylesheet below so it is always printed
+		// first regardless of registration order, which is what lets the
+		// bundle's own `important` Tailwind utilities win the cascade without
+		// needing higher-specificity selectors.
+		wp_enqueue_style(
+			'linkflow-dashboard-isolation',
+			LINKFLOW_DASHBOARD_URL . 'css/isolation.css',
+			array(),
+			LINKFLOW_DASHBOARD_VERSION
+		);
+
+		// Material Symbols is a ligature font: the app's icon markup is plain
+		// text (e.g. "close", "search") that only renders as a glyph once this
+		// font has loaded. The desktop build gets it from a <link> in
+		// index.html, but WordPress never loads that file — it enqueues the
+		// built bundle directly — so without this the icon text renders
+		// literally instead of as icons.
+		wp_enqueue_style(
+			'linkflow-dashboard-material-symbols',
+			'https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap',
+			array(),
+			null
+		);
+
 		if ( ! empty( $entry['css'] ) && is_array( $entry['css'] ) ) {
 			foreach ( $entry['css'] as $index => $css_file ) {
 				$style_handle = 'linkflow-dashboard-' . absint( $index );
 				wp_enqueue_style(
 					$style_handle,
 					LINKFLOW_DASHBOARD_URL . 'build/' . ltrim( $css_file, '/' ),
-					array(),
+					array( 'linkflow-dashboard-isolation' ),
 					LINKFLOW_DASHBOARD_VERSION
 				);
 				wp_add_inline_style(

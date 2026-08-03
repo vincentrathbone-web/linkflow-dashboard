@@ -1,0 +1,39 @@
+/*
+ * Isolation wrapper for the [linkflow_dashboard] shortcode's mount point.
+ *
+ * `all: initial` strips every inherited value a theme or Elementor could
+ * have set on an ancestor (font, color, line-height, list styles, form
+ * control skins) before the app's own Tailwind utilities apply. Tailwind
+ * itself is compiled with the `important` flag (see src/index.css), so once
+ * inheritance is cut here its utilities also win any remaining specificity
+ * fight against page-builder CSS. `isolation: isolate` gives the subtree its
+ * own stacking context so Elementor's own overlays/animations cannot land
+ * between the app's layers, and `contain: layout style` stops the app's
+ * layout from being read by, or reading, anything outside it.
+ *
+ * `all` does not reset custom properties (CSS variables) — this is required
+ * here, since the app's entire theme system (accent color, fonts, dark mode)
+ * is driven by CSS custom properties set on `:root` by App.tsx and must
+ * still inherit down into this otherwise-reset subtree.
+ *
+ * Enqueued as a dependency of every bundle stylesheet (see enqueue_app() in
+ * class-linkflow-dashboard.php) so it always loads first regardless of
+ * registration order, ported from the equivalent isolation technique in the
+ * sibling Little Steps project (its own frontend.css), which had already
+ * solved this same Elementor-bleed problem.
+ */
+#linkflow-dashboard-root {
+	all: initial;
+	display: block;
+	isolation: isolate;
+	contain: layout style;
+	min-height: 100vh;
+	font-family: var(--font-sans, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif);
+}
+
+#linkflow-dashboard-root,
+#linkflow-dashboard-root *,
+#linkflow-dashboard-root *::before,
+#linkflow-dashboard-root *::after {
+	box-sizing: border-box;
+}
