@@ -1000,7 +1000,21 @@ class LinkFlow_Dashboard {
 	public function save_workspace( WP_REST_Request $request ) {
 		global $wpdb;
 
-		$workspace = $this->sanitize_workspace( $request->get_json_params() );
+		$user_id          = get_current_user_id();
+		$expected_version = absint( $request->get_header( 'x-linkflow-version' ) );
+		$current          = $wpdb->get_row(
+			$wpdb->prepare( "SELECT version, workspace FROM {$this->workspaces_table} WHERE user_id = %d", $user_id ),
+			ARRAY_A
+		);
+		$current_version  = is_array( $current ) ? absint( $current['version'] ) : 0;
+		// A client that predates a given workspace field (todos/timesheet/panelLayout
+		// as of this writing) simply omits it from its POST body — that must NOT be
+		// read as "clear this field," or an older client's ordinary save would wipe
+		// data a newer client had written. sanitize_workspace() falls back to this
+		// previously-stored value for any field missing from the incoming payload.
+		$previous_workspace = is_array( $current ) && ! empty( $current['workspace'] ) ? json_decode( $current['workspace'], true ) : null;
+
+		$workspace = $this->sanitize_workspace( $request->get_json_params(), is_array( $previous_workspace ) ? $previous_workspace : null );
 		if ( is_wp_error( $workspace ) ) {
 			$error_code = $workspace->get_error_code();
 			$error_data = $workspace->get_error_data( $error_code );
@@ -1013,14 +1027,6 @@ class LinkFlow_Dashboard {
 			);
 			return $workspace;
 		}
-
-		$user_id          = get_current_user_id();
-		$expected_version = absint( $request->get_header( 'x-linkflow-version' ) );
-		$current          = $wpdb->get_row(
-			$wpdb->prepare( "SELECT version FROM {$this->workspaces_table} WHERE user_id = %d", $user_id ),
-			ARRAY_A
-		);
-		$current_version  = is_array( $current ) ? absint( $current['version'] ) : 0;
 
 		if ( $expected_version !== $current_version ) {
 			return new WP_Error(
@@ -1180,18 +1186,28 @@ class LinkFlow_Dashboard {
 	 * @param mixed $workspace Submitted data.
 	 * @return array|WP_Error
 	 */
-	private function sanitize_workspace( $workspace ) {
+	private function sanitize_workspace( $workspace, $previous = null ) {
 		if ( ! is_array( $workspace ) || ! isset( $workspace['sections'], $workspace['links'], $workspace['theme'] ) || ! is_array( $workspace['sections'] ) || ! is_array( $workspace['links'] ) || ! is_array( $workspace['theme'] ) ) {
 			return new WP_Error( 'linkflow_invalid_workspace', __( 'A workspace must contain sections, links, and theme settings.', 'linkflow-dashboard' ), array( 'status' => 400 ) );
 		}
 
 		// todos/timesheet/panelLayout are optional at the top level (unlike
 		// sections/links/theme) so a workspace saved before each feature shipped
-		// still round-trips cleanly.
-		$raw_todos        = isset( $workspace['todos'] ) && is_array( $workspace['todos'] ) ? $workspace['todos'] : array();
-		$raw_timesheet    = isset( $workspace['timesheet'] ) && is_array( $workspace['timesheet'] ) ? $workspace['timesheet'] : array();
+		// still round-trips cleanly. Critically, "missing from this request" falls
+		// back to whatever was already stored for the user (via $previous), not a
+		// hardcoded empty default — otherwise a save from a client that predates one
+		// of these fields (an old desktop build, say) would silently wipe it out for
+		// every other client sharing the same account. An explicit empty array IS
+		// still respected as "the user cleared this," since isset() distinguishes
+		// "key absent" from "key present but empty."
+		$previous_todos        = is_array( $previous ) && isset( $previous['todos'] ) && is_array( $previous['todos'] ) ? $previous['todos'] : array();
+		$previous_timesheet    = is_array( $previous ) && isset( $previous['timesheet'] ) && is_array( $previous['timesheet'] ) ? $previous['timesheet'] : array();
+		$previous_panel_layout = is_array( $previous ) && isset( $previous['panelLayout'] ) && is_array( $previous['panelLayout'] ) ? $previous['panelLayout'] : array();
+
+		$raw_todos        = isset( $workspace['todos'] ) && is_array( $workspace['todos'] ) ? $workspace['todos'] : $previous_todos;
+		$raw_timesheet    = isset( $workspace['timesheet'] ) && is_array( $workspace['timesheet'] ) ? $workspace['timesheet'] : $previous_timesheet;
 		$raw_sessions     = isset( $raw_timesheet['sessions'] ) && is_array( $raw_timesheet['sessions'] ) ? $raw_timesheet['sessions'] : array();
-		$raw_panel_layout = isset( $workspace['panelLayout'] ) && is_array( $workspace['panelLayout'] ) ? $workspace['panelLayout'] : array();
+		$raw_panel_layout = isset( $workspace['panelLayout'] ) && is_array( $workspace['panelLayout'] ) ? $workspace['panelLayout'] : $previous_panel_layout;
 		$raw_widgets      = isset( $raw_panel_layout['widgets'] ) && is_array( $raw_panel_layout['widgets'] ) ? $raw_panel_layout['widgets'] : array();
 
 		if (

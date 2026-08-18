@@ -1,6 +1,6 @@
 # LinkFlow Dashboard WordPress Plugin
 
-Current version: **0.4.29**, live on `controll.co.za`.
+Current version: **0.4.30**, live on `controll.co.za`.
 
 LinkFlow provides a closed, authenticated cloud workspace for the hosted React interface and Windows desktop client. Each WordPress user has an isolated workspace and up to 20 recoverable revisions. There are no public or shared workspace endpoints.
 
@@ -66,6 +66,10 @@ Run `./package.ps1` from the workspace root. It reads the slug/version from this
 This is the canonical plugin changelog. The desktop client keeps its own in
 [`linkflow-dashboard/README.md`](../../linkflow-dashboard/README.md); where a plugin release shipped
 alongside a desktop release, the pairing is noted here.
+
+### 2026-08-19
+
+- **0.4.30:** Fixed a data-loss bug: `sanitize_workspace()` treated `todos`/`timesheet`/`panelLayout` missing from an incoming save as "clear it," rather than "this client predates the field, leave it alone" — so a save from an old client (desktop 0.1.10, before this feature shipped) could silently wipe a newer client's data on the same account. `save_workspace()` now reads the current stored workspace before validating the incoming one and passes it to `sanitize_workspace()` as a fallback for any of those three fields the incoming request omits; an explicitly-sent empty value is still honored as an intentional clear. No schema change. See `HANDOVER.md` for the full incident writeup and the one affected account's data repair.
 
 ### 2026-08-18
 
