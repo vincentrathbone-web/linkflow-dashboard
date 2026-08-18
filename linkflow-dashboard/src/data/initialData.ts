@@ -1,4 +1,4 @@
-import { LinkSection, LinkItem, ThemeConfig } from '../types';
+import { LinkSection, LinkItem, ThemeConfig, TimesheetState, PanelLayoutState } from '../types';
 import { DEFAULT_FONT_PAIR_ID } from './fontPairs';
 
 export const DEFAULT_THEME: ThemeConfig = {
@@ -13,6 +13,19 @@ export const DEFAULT_THEME: ThemeConfig = {
   headingScale: 1,
   linkTextScale: 1,
   bgOverlayOpacity: 0.65,
+};
+
+export const DEFAULT_TIMESHEET: TimesheetState = {
+  currentSessionStart: null,
+  sessions: [],
+  weeklyTargetHours: 40,
+};
+
+export const DEFAULT_PANEL_LAYOUT: PanelLayoutState = {
+  widgets: [
+    { id: 'todo', column: 'left', order: 0, heightUnits: null },
+    { id: 'timesheet', column: 'right', order: 0, heightUnits: null },
+  ],
 };
 
 export const INITIAL_SECTIONS: LinkSection[] = [

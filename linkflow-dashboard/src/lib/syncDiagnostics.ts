@@ -170,6 +170,9 @@ export function describeWorkspace(workspace: WorkspaceDocument): Record<string, 
     linkCount: workspace.links.length,
     linkIds: workspace.links.map((link) => link.id),
     themePreset: workspace.theme.preset,
+    todoCount: workspace.todos.length,
+    timesheetClockedIn: workspace.timesheet.currentSessionStart !== null,
+    panelLayout: workspace.panelLayout.widgets.map((w) => `${w.id}:${w.column}:${w.order}`),
     workspace,
   };
 }

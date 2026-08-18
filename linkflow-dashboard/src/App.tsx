@@ -4,9 +4,14 @@ import {
   LinkItem,
   ThemeConfig,
   NavTab,
+  TodoItem,
+  TimesheetState,
+  PanelLayoutState,
 } from './types';
 import {
   DEFAULT_THEME,
+  DEFAULT_TIMESHEET,
+  DEFAULT_PANEL_LAYOUT,
   INITIAL_SECTIONS,
   INITIAL_LINKS,
 } from './data/initialData';
@@ -17,6 +22,12 @@ import { CollectionsView } from './components/CollectionsView';
 import { ArchiveView } from './components/ArchiveView';
 import { AddLinkModal } from './components/AddLinkModal';
 import { AddSectionModal } from './components/AddSectionModal';
+import { AddTaskModal } from './components/AddTaskModal';
+import { LogActivityModal } from './components/LogActivityModal';
+import { ManualTimeEntryModal } from './components/ManualTimeEntryModal';
+import { TodoPanel } from './components/TodoPanel';
+import { TimesheetPanel } from './components/TimesheetPanel';
+import { WidgetGrid } from './components/widgets/WidgetGrid';
 import { SettingsModal } from './components/SettingsModal';
 import { AdvancedThemeModal } from './components/AdvancedThemeModal';
 import { hasCloudBackend, loadWorkspace, saveWorkspace, WorkspaceDocument } from './lib/linkflowApi';
@@ -186,6 +197,55 @@ export default function App() {
     }
   });
 
+  // LocalStorage Persistence - Todos
+  const [todos, setTodos] = useState<TodoItem[]>(() => {
+    try {
+      const saved = localStorage.getItem('linkflow_todos');
+      const value = saved ? JSON.parse(saved) : [];
+      logSync('info', 'local-cache', saved ? 'Todos loaded from local cache.' : 'No cached todos found; starting with an empty list.', {
+        storageKey: 'linkflow_todos',
+        serializedBytes: saved?.length ?? 0,
+        todoCount: value.length,
+      });
+      return value;
+    } catch (error) {
+      logSync('error', 'local-cache', 'Cached todos could not be parsed; starting with an empty list.', { storageKey: 'linkflow_todos', error });
+      return [];
+    }
+  });
+
+  // LocalStorage Persistence - Timesheet
+  const [timesheet, setTimesheet] = useState<TimesheetState>(() => {
+    try {
+      const saved = localStorage.getItem('linkflow_timesheet');
+      const value = saved ? JSON.parse(saved) : DEFAULT_TIMESHEET;
+      logSync('info', 'local-cache', saved ? 'Timesheet loaded from local cache.' : 'No cached timesheet found; using defaults.', {
+        storageKey: 'linkflow_timesheet',
+        serializedBytes: saved?.length ?? 0,
+      });
+      return value;
+    } catch (error) {
+      logSync('error', 'local-cache', 'Cached timesheet could not be parsed; using defaults.', { storageKey: 'linkflow_timesheet', error });
+      return DEFAULT_TIMESHEET;
+    }
+  });
+
+  // LocalStorage Persistence - Panel Layout
+  const [panelLayout, setPanelLayout] = useState<PanelLayoutState>(() => {
+    try {
+      const saved = localStorage.getItem('linkflow_panel_layout');
+      const value = saved ? JSON.parse(saved) : DEFAULT_PANEL_LAYOUT;
+      logSync('info', 'local-cache', saved ? 'Panel layout loaded from local cache.' : 'No cached panel layout found; using defaults.', {
+        storageKey: 'linkflow_panel_layout',
+        serializedBytes: saved?.length ?? 0,
+      });
+      return value;
+    } catch (error) {
+      logSync('error', 'local-cache', 'Cached panel layout could not be parsed; using defaults.', { storageKey: 'linkflow_panel_layout', error });
+      return DEFAULT_PANEL_LAYOUT;
+    }
+  });
+
   const [isWorkspaceReady, setIsWorkspaceReady] = useState(() => !isDesktopApp());
   const [workspaceVersion, setWorkspaceVersion] = useState(0);
   const [syncError, setSyncError] = useState<string | null>(null);
@@ -211,9 +271,15 @@ export default function App() {
       localStorage.removeItem('linkflow_sections');
       localStorage.removeItem('linkflow_links');
       localStorage.removeItem('linkflow_theme');
+      localStorage.removeItem('linkflow_todos');
+      localStorage.removeItem('linkflow_timesheet');
+      localStorage.removeItem('linkflow_panel_layout');
       setSections([]);
       setLinks([]);
       setTheme(DEFAULT_THEME);
+      setTodos([]);
+      setTimesheet(DEFAULT_TIMESHEET);
+      setPanelLayout(DEFAULT_PANEL_LAYOUT);
       lastSavedWorkspace.current = '';
     }
 
@@ -227,6 +293,14 @@ export default function App() {
 
   const [isAddSectionOpen, setIsAddSectionOpen] = useState(false);
   const [editingSection, setEditingSection] = useState<LinkSection | null>(null);
+
+  const [isAddTaskOpen, setIsAddTaskOpen] = useState(false);
+  const [editingTodo, setEditingTodo] = useState<TodoItem | null>(null);
+
+  const [isLogActivityOpen, setIsLogActivityOpen] = useState(false);
+  const [loggingSessionId, setLoggingSessionId] = useState<string | null>(null);
+
+  const [isManualEntryOpen, setIsManualEntryOpen] = useState(false);
 
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isAdvancedThemeOpen, setIsAdvancedThemeOpen] = useState(false);
@@ -328,6 +402,37 @@ export default function App() {
     if (fontLink.href !== fontHref) fontLink.href = fontHref;
   }, [theme]);
 
+  useEffect(() => {
+    const serialized = JSON.stringify(todos);
+    localStorage.setItem('linkflow_todos', serialized);
+    logSync('debug', 'local-cache', 'Todos written to local cache.', {
+      storageKey: 'linkflow_todos',
+      todoCount: todos.length,
+      serializedBytes: serialized.length,
+      fingerprint: textFingerprint(serialized),
+    });
+  }, [todos]);
+
+  useEffect(() => {
+    const serialized = JSON.stringify(timesheet);
+    localStorage.setItem('linkflow_timesheet', serialized);
+    logSync('debug', 'local-cache', 'Timesheet written to local cache.', {
+      storageKey: 'linkflow_timesheet',
+      serializedBytes: serialized.length,
+      fingerprint: textFingerprint(serialized),
+    });
+  }, [timesheet]);
+
+  useEffect(() => {
+    const serialized = JSON.stringify(panelLayout);
+    localStorage.setItem('linkflow_panel_layout', serialized);
+    logSync('debug', 'local-cache', 'Panel layout written to local cache.', {
+      storageKey: 'linkflow_panel_layout',
+      serializedBytes: serialized.length,
+      fingerprint: textFingerprint(serialized),
+    });
+  }, [panelLayout]);
+
   // The hosted WordPress app uses cloud storage as the source of truth. Local storage
   // remains only as a fast offline cache and migration source for standalone/Tauri use.
   useEffect(() => {
@@ -344,7 +449,7 @@ export default function App() {
 
     logSync('info', 'workspace', 'Initial cloud pull effect started.', {
       desktopSessionReady,
-      cachedWorkspace: describeWorkspace({ sections, links, theme }),
+      cachedWorkspace: describeWorkspace({ sections, links, theme, todos, timesheet, panelLayout }),
     });
     setIsWorkspaceReady(false);
 
@@ -366,6 +471,11 @@ export default function App() {
           setSections(workspace.sections);
           setLinks(workspace.links);
           setTheme(workspace.theme);
+          // Defensive defaults: workspaces saved before this feature shipped
+          // won't carry todos/timesheet at all.
+          setTodos(workspace.todos ?? []);
+          setTimesheet(workspace.timesheet ?? DEFAULT_TIMESHEET);
+          setPanelLayout(workspace.panelLayout ?? DEFAULT_PANEL_LAYOUT);
         } else {
           logSync('warning', 'workspace', 'Server returned no workspace row; cached data remains active and will become the first cloud save.', {
             version,
@@ -406,7 +516,7 @@ export default function App() {
       return undefined;
     }
 
-    const workspace: WorkspaceDocument = { sections, links, theme };
+    const workspace: WorkspaceDocument = { sections, links, theme, todos, timesheet, panelLayout };
     const serializedWorkspace = JSON.stringify(workspace);
     if (serializedWorkspace === lastSavedWorkspace.current) {
       logSync('debug', 'workspace', 'Cloud push skipped because local state matches the last confirmed server workspace.', {
@@ -463,7 +573,7 @@ export default function App() {
         pendingFingerprint: textFingerprint(serializedWorkspace),
       });
     };
-  }, [isWorkspaceReady, sections, links, theme, workspaceVersion]);
+  }, [isWorkspaceReady, sections, links, theme, todos, timesheet, panelLayout, workspaceVersion]);
 
   // Section Handlers
   const handleToggleSection = (id: string) => {
@@ -556,6 +666,84 @@ export default function App() {
         link.id === id ? { ...link, isFavorite: !link.isFavorite } : link
       )
     );
+  };
+
+  // Todo Handlers
+  const handleSaveTask = (
+    taskData: Omit<TodoItem, 'id' | 'createdAt' | 'done'>,
+    editingId?: string
+  ) => {
+    if (editingId) {
+      setTodos((prev) =>
+        prev.map((todo) => (todo.id === editingId ? { ...todo, ...taskData } : todo))
+      );
+    } else {
+      const newTodo: TodoItem = {
+        ...taskData,
+        id: 'todo-' + Date.now(),
+        done: false,
+        createdAt: new Date().toISOString(),
+      };
+      setTodos((prev) => [...prev, newTodo]);
+    }
+  };
+
+  const handleToggleTodoDone = (id: string) => {
+    setTodos((prev) =>
+      prev.map((todo) => (todo.id === id ? { ...todo, done: !todo.done } : todo))
+    );
+  };
+
+  const handleDeleteTodo = (id: string) => {
+    setTodos((prev) => prev.filter((todo) => todo.id !== id));
+  };
+
+  // Timesheet Handlers
+  const handleStartClock = () => {
+    setTimesheet((prev) =>
+      prev.currentSessionStart ? prev : { ...prev, currentSessionStart: new Date().toISOString() }
+    );
+  };
+
+  const handleStopClock = () => {
+    const newSessionId = 'session-' + Date.now();
+    let didStop = false;
+    setTimesheet((prev) => {
+      if (!prev.currentSessionStart) return prev;
+      didStop = true;
+      const end = new Date().toISOString();
+      const durationSeconds = Math.round((Date.parse(end) - Date.parse(prev.currentSessionStart)) / 1000);
+      return {
+        ...prev,
+        currentSessionStart: null,
+        sessions: [
+          ...prev.sessions,
+          { id: newSessionId, start: prev.currentSessionStart, end, durationSeconds },
+        ],
+      };
+    });
+    if (didStop) {
+      setLoggingSessionId(newSessionId);
+      setIsLogActivityOpen(true);
+    }
+  };
+
+  const handleSaveSessionActivity = (sessionId: string, activity: string) => {
+    setTimesheet((prev) => ({
+      ...prev,
+      sessions: prev.sessions.map((s) => (s.id === sessionId ? { ...s, activity } : s)),
+    }));
+  };
+
+  const handleAddManualSession = (entry: { activity: string; start: string; end: string; durationSeconds: number }) => {
+    setTimesheet((prev) => ({
+      ...prev,
+      sessions: [...prev.sessions, { id: 'session-' + Date.now(), ...entry }],
+    }));
+  };
+
+  const handleSetWeeklyTargetHours = (hours: number) => {
+    setTimesheet((prev) => ({ ...prev, weeklyTargetHours: hours }));
   };
 
   const handleArchiveLink = (id: string) => {
@@ -797,34 +985,67 @@ export default function App() {
           </div>
         )}
         {activeTab === 'dashboard' && (
-          <DashboardView
-            sections={sections}
-            links={links}
-            onToggleSection={handleToggleSection}
-            onEditSection={(section) => {
-              setEditingSection(section);
-              setIsAddSectionOpen(true);
-            }}
-            onDeleteSection={handleDeleteSection}
-            onOpenAddLinkForSection={(secId) => {
-              setEditingLink(null);
-              setDefaultSectionForAddLink(secId);
-              setIsAddLinkOpen(true);
-            }}
-            onOpenAddSection={() => {
-              setEditingSection(null);
-              setIsAddSectionOpen(true);
-            }}
-            onEditLink={(link) => {
-              setEditingLink(link);
-              setIsAddLinkOpen(true);
-            }}
-            onToggleFavorite={handleToggleFavorite}
-            onArchiveLink={handleArchiveLink}
-            onIncrementClick={handleIncrementClick}
-            onOpenSort={() => setIsDashboardSortOpen(true)}
-            searchQuery={searchQuery}
-          />
+          <div className="flex flex-1 items-start max-w-[1880px] mx-auto w-full">
+            <WidgetGrid
+              layout={panelLayout}
+              onLayoutChange={setPanelLayout}
+              renderWidget={(id) =>
+                id === 'todo' ? (
+                  <TodoPanel
+                    todos={todos}
+                    onToggleDone={handleToggleTodoDone}
+                    onOpenAddTask={() => {
+                      setEditingTodo(null);
+                      setIsAddTaskOpen(true);
+                    }}
+                    onEditTask={(todo) => {
+                      setEditingTodo(todo);
+                      setIsAddTaskOpen(true);
+                    }}
+                    onDeleteTask={handleDeleteTodo}
+                  />
+                ) : (
+                  <TimesheetPanel
+                    timesheet={timesheet}
+                    onStartClock={handleStartClock}
+                    onStopClock={handleStopClock}
+                    onOpenManualEntry={() => setIsManualEntryOpen(true)}
+                  />
+                )
+              }
+            >
+              <div className="flex-1 min-w-0">
+                <DashboardView
+                  sections={sections}
+                  links={links}
+                  onToggleSection={handleToggleSection}
+                  onEditSection={(section) => {
+                    setEditingSection(section);
+                    setIsAddSectionOpen(true);
+                  }}
+                  onDeleteSection={handleDeleteSection}
+                  onOpenAddLinkForSection={(secId) => {
+                    setEditingLink(null);
+                    setDefaultSectionForAddLink(secId);
+                    setIsAddLinkOpen(true);
+                  }}
+                  onOpenAddSection={() => {
+                    setEditingSection(null);
+                    setIsAddSectionOpen(true);
+                  }}
+                  onEditLink={(link) => {
+                    setEditingLink(link);
+                    setIsAddLinkOpen(true);
+                  }}
+                  onToggleFavorite={handleToggleFavorite}
+                  onArchiveLink={handleArchiveLink}
+                  onIncrementClick={handleIncrementClick}
+                  onOpenSort={() => setIsDashboardSortOpen(true)}
+                  searchQuery={searchQuery}
+                />
+              </div>
+            </WidgetGrid>
+          </div>
         )}
 
         {activeTab === 'collections' && (
@@ -880,6 +1101,38 @@ export default function App() {
         editingSection={editingSection}
       />
 
+      <AddTaskModal
+        isOpen={isAddTaskOpen}
+        onClose={() => {
+          setIsAddTaskOpen(false);
+          setEditingTodo(null);
+        }}
+        onSaveTask={handleSaveTask}
+        editingTask={editingTodo}
+      />
+
+      <LogActivityModal
+        isOpen={isLogActivityOpen}
+        onClose={() => {
+          setIsLogActivityOpen(false);
+          setLoggingSessionId(null);
+        }}
+        onSave={(activity) => {
+          if (loggingSessionId) handleSaveSessionActivity(loggingSessionId, activity);
+          setIsLogActivityOpen(false);
+          setLoggingSessionId(null);
+        }}
+      />
+
+      <ManualTimeEntryModal
+        isOpen={isManualEntryOpen}
+        onClose={() => setIsManualEntryOpen(false)}
+        onSave={(entry) => {
+          handleAddManualSession(entry);
+          setIsManualEntryOpen(false);
+        }}
+      />
+
       <SettingsModal
         isOpen={isSettingsOpen}
         onClose={() => setIsSettingsOpen(false)}
@@ -896,6 +1149,8 @@ export default function App() {
         onCollapseAllSections={handleCollapseAllSections}
         catEnabled={catEnabled}
         onSetCatEnabled={handleSetCatEnabled}
+        weeklyTargetHours={timesheet.weeklyTargetHours}
+        onSetWeeklyTargetHours={handleSetWeeklyTargetHours}
       />
 
       <AdvancedThemeModal

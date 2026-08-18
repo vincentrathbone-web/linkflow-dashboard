@@ -15,6 +15,8 @@ interface SettingsModalProps {
   onCollapseAllSections: () => void;
   catEnabled: boolean;
   onSetCatEnabled: (value: boolean) => void;
+  weeklyTargetHours: number;
+  onSetWeeklyTargetHours: (hours: number) => void;
 }
 
 export const SettingsModal: React.FC<SettingsModalProps> = ({
@@ -30,6 +32,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   onCollapseAllSections,
   catEnabled,
   onSetCatEnabled,
+  weeklyTargetHours,
+  onSetWeeklyTargetHours,
 }) => {
   if (!isOpen) return null;
 
@@ -188,6 +192,31 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                 }`}
               />
             </button>
+          </div>
+
+          {/* Timesheet */}
+          <div className="flex items-center justify-between gap-4 pt-4 border-t border-border-subtle">
+            <div className="flex flex-col gap-0.5">
+              <label htmlFor="weekly-target-hours" className="text-[11px] font-bold text-text-muted uppercase tracking-wider">
+                Weekly Hours Target
+              </label>
+              <span className="text-xs text-text-muted">
+                Used for the timesheet panel's weekly progress bar.
+              </span>
+            </div>
+            <input
+              id="weekly-target-hours"
+              type="number"
+              min={0}
+              max={168}
+              step={0.5}
+              value={weeklyTargetHours}
+              onChange={(e) => {
+                const hours = Number(e.target.value);
+                if (!Number.isNaN(hours)) onSetWeeklyTargetHours(Math.min(168, Math.max(0, hours)));
+              }}
+              className="w-20 bg-surface border border-border-main rounded-lg px-2.5 py-1.5 text-xs text-text-main text-right focus:outline-none focus:border-border-focus focus:ring-2 focus:ring-border-focus/20 transition-colors"
+            />
           </div>
 
           {/* Backup & Data Management */}

@@ -1,6 +1,6 @@
 # LinkFlow Dashboard WordPress Plugin
 
-Current version: **0.4.27**, live on `controll.co.za`.
+Current version: **0.4.29**, live on `controll.co.za`.
 
 LinkFlow provides a closed, authenticated cloud workspace for the hosted React interface and Windows desktop client. Each WordPress user has an isolated workspace and up to 20 recoverable revisions. There are no public or shared workspace endpoints.
 
@@ -33,6 +33,10 @@ The custom header is intentional: some shared hosts strip the standard `Authoriz
 
 Workspace writes use optimistic concurrency through `X-LinkFlow-Version`. URLs are stored, not fetched by WordPress. Validation therefore requires well-formed HTTP/HTTPS syntax but correctly allows bookmarks targeting localhost, private networks, and custom ports. Bare domains are upgraded to HTTPS.
 
+**Deployed 0.4.28 (2026-08-18):** the workspace document gained three optional top-level fields — `todos`, `timesheet`, and `panelLayout` (per-user to-do list, start/stop timesheet, and drag/resize layout for their two Dashboard side panels; all single-user only, no cross-account assignment or sharing). No new table, endpoint, or `LINKFLOW_DASHBOARD_DB_VERSION` bump — all three fields live inside the same `workspace` JSON blob and ride the existing version/revision machinery untouched (confirmed post-deploy: `linkflow_dashboard_db_version` option and the three `linkflow_*` tables are unchanged). `sanitize_workspace()` whitelists them: up to 500 todos (id, text ≤500 chars, `done`, optional `priority` in `low|medium|high`, optional ISO `dueDate`), up to 2000 timesheet sessions (id, ISO `start`/`end`, `durationSeconds`, plus `currentSessionStart` and `weeklyTargetHours` clamped 0-168), and up to 20 `panelLayout` widget entries (`id` in `todo`/`timesheet`, `column` in `left`/`right`, `order`, `heightUnits` clamped 6-60 — mirrors `WIDGET_MIN_ROWS`/`WIDGET_MAX_ROWS` in the frontend's `gridConstants.ts`, keep in sync). Malformed input is rejected the same way malformed sections/links are (a 400 `WP_Error`), not silently dropped; all three fields are optional at the top level so a workspace saved before this shipped still round-trips. See the version history entry below for the deploy record — **a real authenticated save/load round-trip has not yet been confirmed by hand.**
+
+**Deployed 0.4.29 (2026-08-18):** each timesheet session gained an optional `activity` field (freeform text, ≤1000 chars, `sanitize_textarea_field()`), logged via a "what did you work on?" prompt shown right after clocking out. Same optional-field, reject-don't-drop-malformed-input pattern as everything else here. (Manual time entry, the Today-vs-week progress bar, the "Timer Started/Stopped" wording, and the session-copy-to-clipboard button also shipped in 0.4.29 but are entirely frontend — nothing else changed server-side for them.)
+
 ## Daily inspiration
 
 `GET /daily-inspiration` returns a cached-per-day quote or Bible verse for the Dashboard bubble. It always fetches server-side (never exposes a third-party API or key to the browser) and caches the result in a WordPress transient until local midnight:
@@ -62,6 +66,11 @@ Run `./package.ps1` from the workspace root. It reads the slug/version from this
 This is the canonical plugin changelog. The desktop client keeps its own in
 [`linkflow-dashboard/README.md`](../../linkflow-dashboard/README.md); where a plugin release shipped
 alongside a desktop release, the pairing is noted here.
+
+### 2026-08-18
+
+- **0.4.28:** Added `todos`, `timesheet`, and `panelLayout` as three new optional top-level fields on the workspace document, backing the new To-Do List and Timesheet Dashboard side panels (grouped/prioritized tasks; start/stop clock with weekly progress and session log; drag-to-reposition/resize layout for both panels). See the "Workspace API" section above for the field-level detail. No schema change of any kind — verified post-deploy via `wp option get linkflow_dashboard_db_version` (still `1`) and `SHOW TABLES LIKE '%linkflow%'` (still the same three tables). Deployed via `wp plugin install <zip> --force` over SSH (the `linkflow` alias) rather than the wp-admin uploader. **Not yet verified:** an actual authenticated save/load round-trip through the live endpoint — deployment was confirmed by re-running `wp plugin list` (active, 0.4.28) and a `GET /workspace` 401-without-auth sanity check, not by a signed-in user's data actually round-tripping.
+- **0.4.29:** Added an optional `activity` field (freeform text, ≤1000 chars) to each timesheet session in `sanitize_workspace()` — the only server-side change in this release. Everything else that shipped alongside it (a manual time-entry form, the Dashboard progress bar switching from a weekly to a daily view, "Timer Started"/"Timer Stopped" status wording, and a copy-sessions-to-clipboard button) is entirely frontend, reusing the exact same `TimesheetSession` shape the server already validated — no further plugin changes needed for those. Same deploy/verification method as 0.4.28 (`wp plugin install --force` over SSH; confirmed `active 0.4.29`, DB version and tables unchanged, route still responds). **Not yet verified:** a real authenticated round-trip with the new `activity` field populated, and none of the frontend-only additions have been watched running in a real browser yet.
 
 ### 2026-08-03
 

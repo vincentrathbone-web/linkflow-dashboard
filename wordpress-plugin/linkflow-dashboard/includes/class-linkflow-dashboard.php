@@ -1185,7 +1185,19 @@ class LinkFlow_Dashboard {
 			return new WP_Error( 'linkflow_invalid_workspace', __( 'A workspace must contain sections, links, and theme settings.', 'linkflow-dashboard' ), array( 'status' => 400 ) );
 		}
 
-		if ( count( $workspace['sections'] ) > 100 || count( $workspace['links'] ) > 5000 ) {
+		// todos/timesheet/panelLayout are optional at the top level (unlike
+		// sections/links/theme) so a workspace saved before each feature shipped
+		// still round-trips cleanly.
+		$raw_todos        = isset( $workspace['todos'] ) && is_array( $workspace['todos'] ) ? $workspace['todos'] : array();
+		$raw_timesheet    = isset( $workspace['timesheet'] ) && is_array( $workspace['timesheet'] ) ? $workspace['timesheet'] : array();
+		$raw_sessions     = isset( $raw_timesheet['sessions'] ) && is_array( $raw_timesheet['sessions'] ) ? $raw_timesheet['sessions'] : array();
+		$raw_panel_layout = isset( $workspace['panelLayout'] ) && is_array( $workspace['panelLayout'] ) ? $workspace['panelLayout'] : array();
+		$raw_widgets      = isset( $raw_panel_layout['widgets'] ) && is_array( $raw_panel_layout['widgets'] ) ? $raw_panel_layout['widgets'] : array();
+
+		if (
+			count( $workspace['sections'] ) > 100 || count( $workspace['links'] ) > 5000 ||
+			count( $raw_todos ) > 500 || count( $raw_sessions ) > 2000 || count( $raw_widgets ) > 20
+		) {
 			return new WP_Error( 'linkflow_workspace_too_large', __( 'This workspace exceeds its supported size.', 'linkflow-dashboard' ), array( 'status' => 400 ) );
 		}
 
@@ -1257,10 +1269,83 @@ class LinkFlow_Dashboard {
 			return new WP_Error( 'linkflow_invalid_theme', __( 'The accent colour must be a six-digit hexadecimal value.', 'linkflow-dashboard' ), array( 'status' => 400 ) );
 		}
 
+		$iso_datetime_pattern = '/^\d{4}-\d{2}-\d{2}(T\d{2}:\d{2}:\d{2}(\.\d+)?(Z|[+-]\d{2}:\d{2})?)?$/';
+
+		$todos = array();
+		foreach ( $raw_todos as $todo ) {
+			if ( ! is_array( $todo ) || empty( $todo['id'] ) || ! isset( $todo['text'] ) || '' === trim( (string) $todo['text'] ) ) {
+				return new WP_Error( 'linkflow_invalid_todo', __( 'Every task needs an ID and text.', 'linkflow-dashboard' ), array( 'status' => 400 ) );
+			}
+			$priority = isset( $todo['priority'] ) && in_array( $todo['priority'], array( 'low', 'medium', 'high' ), true ) ? $todo['priority'] : null;
+			$due_date = null;
+			if ( ! empty( $todo['dueDate'] ) && preg_match( $iso_datetime_pattern, (string) $todo['dueDate'] ) ) {
+				$due_date = sanitize_text_field( $todo['dueDate'] );
+			}
+			$todos[] = array(
+				'id'        => sanitize_key( $todo['id'] ),
+				'text'      => sanitize_text_field( mb_substr( (string) $todo['text'], 0, 500 ) ),
+				'done'      => ! empty( $todo['done'] ),
+				'priority'  => $priority,
+				'dueDate'   => $due_date,
+				'createdAt' => isset( $todo['createdAt'] ) ? sanitize_text_field( $todo['createdAt'] ) : gmdate( 'c' ),
+			);
+		}
+
+		$sessions = array();
+		foreach ( $raw_sessions as $session ) {
+			if (
+				! is_array( $session ) || empty( $session['id'] ) ||
+				empty( $session['start'] ) || empty( $session['end'] ) ||
+				! preg_match( $iso_datetime_pattern, (string) $session['start'] ) ||
+				! preg_match( $iso_datetime_pattern, (string) $session['end'] )
+			) {
+				return new WP_Error( 'linkflow_invalid_session', __( 'Every timesheet session needs a valid start and end time.', 'linkflow-dashboard' ), array( 'status' => 400 ) );
+			}
+			$sessions[] = array(
+				'id'              => sanitize_key( $session['id'] ),
+				'start'           => sanitize_text_field( $session['start'] ),
+				'end'             => sanitize_text_field( $session['end'] ),
+				'durationSeconds' => isset( $session['durationSeconds'] ) ? absint( $session['durationSeconds'] ) : 0,
+				'activity'        => ! empty( $session['activity'] ) ? sanitize_textarea_field( mb_substr( (string) $session['activity'], 0, 1000 ) ) : '',
+			);
+		}
+		$current_session_start = null;
+		if ( ! empty( $raw_timesheet['currentSessionStart'] ) && preg_match( $iso_datetime_pattern, (string) $raw_timesheet['currentSessionStart'] ) ) {
+			$current_session_start = sanitize_text_field( $raw_timesheet['currentSessionStart'] );
+		}
+		$timesheet = array(
+			'currentSessionStart' => $current_session_start,
+			'sessions'            => $sessions,
+			'weeklyTargetHours'   => min( 168, max( 0, isset( $raw_timesheet['weeklyTargetHours'] ) ? (float) $raw_timesheet['weeklyTargetHours'] : 40 ) ),
+		);
+
+		// Mirrors WIDGET_MIN_ROWS/WIDGET_MAX_ROWS in
+		// linkflow-dashboard/src/components/widgets/gridConstants.ts — keep in sync.
+		$widgets = array();
+		foreach ( $raw_widgets as $widget ) {
+			if ( ! is_array( $widget ) || empty( $widget['id'] ) || ! in_array( $widget['id'], array( 'todo', 'timesheet' ), true ) ) {
+				return new WP_Error( 'linkflow_invalid_widget', __( 'Every panel-layout widget needs a valid ID.', 'linkflow-dashboard' ), array( 'status' => 400 ) );
+			}
+			$height_units = null;
+			if ( isset( $widget['heightUnits'] ) && null !== $widget['heightUnits'] ) {
+				$height_units = min( 60, max( 6, absint( $widget['heightUnits'] ) ) );
+			}
+			$widgets[] = array(
+				'id'          => $widget['id'],
+				'column'      => isset( $widget['column'] ) && 'right' === $widget['column'] ? 'right' : 'left',
+				'order'       => isset( $widget['order'] ) ? absint( $widget['order'] ) : count( $widgets ),
+				'heightUnits' => $height_units,
+			);
+		}
+		$panel_layout = array( 'widgets' => $widgets );
+
 		return array(
-			'sections' => $sections,
-			'links'    => $links,
-			'theme'    => array(
+			'sections'    => $sections,
+			'links'       => $links,
+			'panelLayout' => $panel_layout,
+			'todos'       => $todos,
+			'timesheet'   => $timesheet,
+			'theme'       => array(
 				'preset'         => isset( $theme['preset'] ) && in_array( $theme['preset'], array( 'light', 'dark', 'glass' ), true ) ? $theme['preset'] : 'light',
 				'accentColor'    => $theme['accentColor'],
 				'bgBlur'         => min( 100, max( 0, isset( $theme['bgBlur'] ) ? absint( $theme['bgBlur'] ) : 0 ) ),

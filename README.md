@@ -12,7 +12,7 @@ There are no public workspaces, public URLs, or shared tabs.
 
 | Component | Version | Source |
 | --- | ---: | --- |
-| WordPress plugin | 0.4.27 (live on `controll.co.za`) | `wordpress-plugin/linkflow-dashboard/` |
+| WordPress plugin | 0.4.29 (live on `controll.co.za`) | `wordpress-plugin/linkflow-dashboard/` |
 | Windows desktop app | 0.1.10 | `linkflow-dashboard/src-tauri/` |
 
 Source is hosted on GitHub: [`vincentrathbone-web/linkflow-dashboard`](https://github.com/vincentrathbone-web/linkflow-dashboard) (private repo).
@@ -50,6 +50,14 @@ An optional bubble on the Dashboard shows a daily motivational quote or Bible ve
 ## Virtual pet
 
 An optional animated cat (desktop and hosted web, since it's shared React code) wanders the Dashboard, idles, climbs onto/off section cards, and can be dragged and dropped — ported into `linkflow-dashboard/src/cat/` from the standalone [`linkflow-cat-companion`](https://github.com/vincentrathbone-web/linkflow-cat-companion) prototype (private repo, own development history). Pure SVG, no image assets. Called "Virtual Pet" in the UI (the code keeps the internal `cat`/`Cat` naming). Two toggles, same state: a quick switch at the top of the Theme dropdown, and one in Settings → Workspace Preferences. Per-device, defaults on. Shipped in desktop 0.1.10 — see the desktop README's changelog.
+
+## To-do list & timesheet
+
+Two side panels flank the Dashboard on wide screens (`lg:` and up): a to-do list (left, grouped Today/This Week, optional priority and due date) and a timesheet (right, "Timer Started"/"Timer Stopped" start/stop clock with a live timer, a today's-hours progress bar, and today's session log). Both are per-user and cloud-synced — they ride the existing `workspace` document (`todos`/`timesheet` fields) and its 800 ms debounce/version/revision machinery, not a separate table or endpoint. Single-user only; there is no assignment/sharing between accounts. The weekly hours target (used to derive today's target, ÷5) is editable in Settings → Workspace Preferences. See `linkflow-dashboard/src/components/TodoPanel.tsx`, `TimesheetPanel.tsx`, `AddTaskModal.tsx`, and `sanitize_workspace()` in the plugin. **Deployed 2026-08-18 as plugin 0.4.29 (live on `controll.co.za`)**; a real authenticated save/load round-trip has not yet been confirmed by hand — see HANDOVER.md.
+
+Clocking out also prompts for a short description of what was worked on (`LogActivityModal.tsx`, skippable) — the session's end time is captured the instant Stop is pressed, so the prompt can't affect the recorded duration. "Today's sessions" shows that description as the main line (with duration alongside it) and the start–end time range on a smaller line below. A "+ Add time entry" button (`ManualTimeEntryModal.tsx`) covers a forgotten Start/Stop: activity plus start/end times, with duration always derived from those rather than typed separately. A right-aligned "Copy" button on the "Today's sessions" line copies the day's sessions to the clipboard as both a tab-separated table (pastes into Excel/Sheets as columns) and an HTML table (pastes into email/Word as a formatted grid) in one `ClipboardItem` write. **Deployed 2026-08-18 as plugin 0.4.29** — the `activity` field, manual entries, the Today-vs-week progress bar, the wording change, and the Copy button are all live, but none of it has been checked in a real browser yet (see HANDOVER.md).
+
+Both panels are also draggable/resizable, confirmed working live in the browser: a hover-revealed grip moves a widget between the left/right columns or reorders it within one, and a bottom-edge handle resizes its height only (never width) snapped to a fixed row grid, so widgets can never overlap each other or clip the center links block (which never moves — it's a separate flex sibling, structurally untouched by any of this). Layout (which column, stack order, height) is a third cloud-synced field (`panelLayout`), deployed the same time as `todos`/`timesheet` above. The drag interaction is a fresh, self-contained implementation that mirrors the *technique* used by the link-sort kanban board (`linkflow-dashboard/src/components/onboarding/SortBoard.tsx`) — hand-rolled Pointer Events, a layout snapshot taken once at pickup, velocity-derived tilt, and a Web Animations API landing tween — rather than a shared refactor of that already-shipped component. See `linkflow-dashboard/src/components/widgets/WidgetGrid.tsx`/`WidgetShell.tsx`.
 
 ## In-app updates
 

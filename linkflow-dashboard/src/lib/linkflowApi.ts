@@ -1,10 +1,13 @@
-import { LinkItem, LinkSection, ThemeConfig } from '../types';
+import { LinkItem, LinkSection, ThemeConfig, TodoItem, TimesheetState, PanelLayoutState } from '../types';
 import { describeWorkspace, logSync, nextRequestId } from './syncDiagnostics';
 
 export interface WorkspaceDocument {
   sections: LinkSection[];
   links: LinkItem[];
   theme: ThemeConfig;
+  todos: TodoItem[];
+  timesheet: TimesheetState;
+  panelLayout: PanelLayoutState;
 }
 
 interface LinkFlowUser {
