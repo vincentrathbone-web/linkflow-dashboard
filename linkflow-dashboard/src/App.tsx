@@ -170,6 +170,44 @@ async function closeTimerWidget(): Promise<void> {
   await existing?.close();
 }
 
+const LOG_ACTIVITY_WIDTH = 440;
+const LOG_ACTIVITY_HEIGHT = 300;
+
+/** Opens the "what did you work on?" prompt as its own always-on-top,
+ * chromeless window — used for every stop (in-app Stop button, floating
+ * widget, tray icon) so there's exactly one place this prompt appears,
+ * rather than a modal buried inside the main window's React tree that's
+ * invisible whenever that window is minimized/hidden (the bug this exists
+ * to fix — see HANDOVER.md). Mirrors openTimerWidget()'s shape: transparent
+ * + shadow:false + decorations:false so the window itself has no square
+ * native frame or shadow fighting the card's own rounded corners. */
+async function openLogActivityPrompt(sessionId: string): Promise<void> {
+  const { WebviewWindow } = await import('@tauri-apps/api/webviewWindow');
+  const existing = await WebviewWindow.getByLabel('log-activity');
+  if (existing) {
+    // A session can't stop twice without starting again, so this shouldn't
+    // normally happen — but if it does, just bring the existing prompt
+    // forward rather than opening a second one for a different session.
+    await existing.setFocus();
+    return;
+  }
+
+  const url = `${window.location.pathname}${window.location.search}#log-activity?session=${encodeURIComponent(sessionId)}`;
+  new WebviewWindow('log-activity', {
+    url,
+    width: LOG_ACTIVITY_WIDTH,
+    height: LOG_ACTIVITY_HEIGHT,
+    resizable: false,
+    decorations: false,
+    transparent: true,
+    shadow: false,
+    alwaysOnTop: true,
+    skipTaskbar: true,
+    center: true,
+    focus: true,
+  });
+}
+
 export default function App() {
   const [desktopSessionReady, setDesktopSessionReady] = useState(() => !isDesktopApp() || hasCloudBackend());
   const [isRestoringDesktopSession, setIsRestoringDesktopSession] = useState(isDesktopApp() && !hasCloudBackend());
@@ -867,8 +905,20 @@ export default function App() {
       };
     });
     if (didStop) {
-      setLoggingSessionId(newSessionId);
-      setIsLogActivityOpen(true);
+      // Desktop always uses the standalone always-on-top prompt window (see
+      // openLogActivityPrompt) — for every trigger (this in-app Stop button,
+      // the floating widget, or the tray icon), not just the ones that fire
+      // via a Tauri event — so there's one consistent place this prompt
+      // appears, never a competing in-window modal that's invisible whenever
+      // the main window happens to be minimized/hidden. The hosted web page
+      // has no window-management API to open a separate window with, so it
+      // keeps the original in-page modal as its only option.
+      if (isDesktopApp()) {
+        void openLogActivityPrompt(newSessionId);
+      } else {
+        setLoggingSessionId(newSessionId);
+        setIsLogActivityOpen(true);
+      }
     }
   };
 
@@ -939,6 +989,23 @@ export default function App() {
       unlistenToggle?.();
       unlistenStop?.();
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Answers the standalone "what did you work on?" prompt window (see
+  // openLogActivityPrompt above and LogActivityWindow.tsx) — it has no access
+  // to this component's state, so it emits the activity text back as an
+  // event rather than calling handleSaveSessionActivity directly.
+  useEffect(() => {
+    if (!isDesktopApp()) return undefined;
+    let unlisten: (() => void) | undefined;
+    void (async () => {
+      const { listen } = await import('@tauri-apps/api/event');
+      unlisten = await listen<{ sessionId: string; activity: string }>('linkflow://log-activity-save', (event) => {
+        handleSaveSessionActivity(event.payload.sessionId, event.payload.activity);
+      });
+    })();
+    return () => unlisten?.();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 

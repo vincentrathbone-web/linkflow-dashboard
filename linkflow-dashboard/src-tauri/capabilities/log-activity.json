@@ -1,0 +1,14 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "log-activity",
+  "description": "Permissions for the always-on-top 'what did you work on?' prompt window",
+  "windows": [
+    "log-activity"
+  ],
+  "permissions": [
+    "core:default",
+    "core:event:default",
+    "core:window:allow-close",
+    "core:window:allow-start-dragging"
+  ]
+}

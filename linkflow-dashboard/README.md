@@ -2,7 +2,7 @@
 
 LinkFlow is a private, Windows desktop link workspace. Its React interface is packaged with Tauri and connects directly to the LinkFlow WordPress plugin API; it never renders the WordPress theme or Elementor.
 
-Current desktop version: **0.1.20**. Requires WordPress plugin **0.4.13 or later** for Google sign-in and desktop-initiated sign-out to work (0.4.33 is the paired, live release; it's a version-only bump, no PHP change — 0.1.20's fix is entirely frontend). Plugin 0.4.26+ additionally required for the account dropdown to show the signed-in user's email (degrades gracefully to just the display name against older plugin versions).
+Current desktop version: **0.1.21**. Requires WordPress plugin **0.4.13 or later** for Google sign-in and desktop-initiated sign-out to work (0.4.33 is the paired, live release; both 0.1.20 and 0.1.21 are frontend-only, no PHP change). Plugin 0.4.26+ additionally required for the account dropdown to show the signed-in user's email (degrades gracefully to just the display name against older plugin versions).
 
 The app checks for updates on launch via `@tauri-apps/plugin-updater` (see `UpdateBanner.tsx`), against a WordPress-hosted proxy in front of GitHub Releases — see the plugin README's "In-app updates" section for the full path. **Verified working end-to-end** on 2026-08-02: an installed 0.1.8 client detected the published 0.1.9 GitHub Release, downloaded it, installed it, and relaunched successfully.
 
@@ -65,6 +65,12 @@ For the MSVC x64 build used by this project, Tauri places the installers under `
 
 This is the canonical desktop changelog. The WordPress plugin keeps its own in
 [`wordpress-plugin/linkflow-dashboard/README.md`](../wordpress-plugin/linkflow-dashboard/README.md).
+
+### Version 0.1.21 (2026-08-19, with plugin 0.4.33)
+
+- **Fixed: the "what did you work on?" stop prompt was invisible when stopped from the tray icon or floating widget while the main window was minimized.** It only ever rendered as a modal inside the main window's own React tree — a consequence of the 0.1.19 "minimize to tray" fix keeping that webview alive but hidden, not a stop/response bug (the timer itself stopped and logged correctly the whole time). Moved into its own standalone, always-on-top, chromeless `WebviewWindow` (`LogActivityWindow.tsx`, opened via `openLogActivityPrompt()` in `App.tsx`, new `#log-activity` route in `main.tsx`), mirroring the floating timer widget's own window setup (`transparent: true`, `shadow: false`, `decorations: false` so the card's own rounded corners/box-shadow render cleanly with no native frame fighting them). Used for **every** stop now — in-app Stop button included, not just tray/widget-triggered ones — so there's exactly one place this prompt can appear, never two competing ones. New capability file `src-tauri/capabilities/log-activity.json`. On Save it emits `linkflow://log-activity-save` back to the main window; Skip/close just closes it, same "optional" semantics as before. The hosted web page (no Tauri window APIs) keeps the original in-page modal as its only option, unchanged.
+- **Confirmed working by the user's own hands-on testing** — installed and verified the popup appears correctly while the main window was minimized.
+- Verified via `npm run lint`, `cargo check`, both Vite build modes, and a full signed `tauri build --target x86_64-pc-windows-msvc`; published as GitHub Release `v0.1.21`. No plugin change — still pairs with the live 0.4.33.
 
 ### Version 0.1.20 (2026-08-19, with plugin 0.4.33)
 

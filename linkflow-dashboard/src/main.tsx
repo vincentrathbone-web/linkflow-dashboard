@@ -3,6 +3,7 @@ import {createRoot} from 'react-dom/client';
 import App from './App.tsx';
 import { SyncDiagnosticsPanel } from './components/SyncDiagnosticsPanel.tsx';
 import { TimerWidget } from './components/TimerWidget.tsx';
+import { LogActivityWindow } from './components/LogActivityWindow.tsx';
 import './index.css';
 
 const rootElement = document.getElementById('linkflow-dashboard-root') || document.getElementById('root');
@@ -19,8 +20,22 @@ const isDiagnosticsWindow = window.location.hash === '#diagnostics';
 // openTimerWidget() in App.tsx) when the "Floating Timer Widget" setting is on.
 const isTimerWidgetWindow = window.location.hash === '#timer-widget';
 
+// Opened in its own always-on-top, chromeless desktop window (see
+// openLogActivityPrompt() in App.tsx) every time a timer session stops.
+// Carries the session id as a query string on the hash (`#log-activity?session=...`),
+// so this isn't an exact-match check like the other two hashes above.
+const isLogActivityWindow = window.location.hash.startsWith('#log-activity');
+
 createRoot(rootElement).render(
   <StrictMode>
-    {isDiagnosticsWindow ? <SyncDiagnosticsPanel standalone /> : isTimerWidgetWindow ? <TimerWidget /> : <App />}
+    {isDiagnosticsWindow ? (
+      <SyncDiagnosticsPanel standalone />
+    ) : isTimerWidgetWindow ? (
+      <TimerWidget />
+    ) : isLogActivityWindow ? (
+      <LogActivityWindow />
+    ) : (
+      <App />
+    )}
   </StrictMode>,
 );

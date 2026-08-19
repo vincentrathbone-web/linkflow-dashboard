@@ -5,7 +5,7 @@
 **A private, cross-platform link workspace.**
 One account, one dataset, one interface — shared between a native Windows desktop app and an authenticated WordPress-hosted page.
 
-[![Desktop](https://img.shields.io/badge/desktop-0.1.20-2563eb)](./linkflow-dashboard/README.md)
+[![Desktop](https://img.shields.io/badge/desktop-0.1.21-2563eb)](./linkflow-dashboard/README.md)
 [![Plugin](https://img.shields.io/badge/WordPress%20plugin-0.4.33-21759b?logo=wordpress&logoColor=white)](./wordpress-plugin/linkflow-dashboard/README.md)
 [![Platform](https://img.shields.io/badge/platform-Windows-0078D6?logo=windows&logoColor=white)](#)
 [![React](https://img.shields.io/badge/React-19-61DAFB?logo=react&logoColor=white)](#)
@@ -70,7 +70,7 @@ Writes are debounced 800ms client-side, versioned server-side (`X-LinkFlow-Versi
 
 | Component | Version | Status | Source |
 | --- | ---: | --- | --- |
-| Windows desktop app | **0.1.20** | Live (GitHub Release) | `linkflow-dashboard/src-tauri/` |
+| Windows desktop app | **0.1.21** | Live (GitHub Release) | `linkflow-dashboard/src-tauri/` |
 | WordPress plugin | **0.4.33** | Live on `controll.co.za` | `wordpress-plugin/linkflow-dashboard/` |
 
 Each component keeps its own changelog — see their READMEs, linked below.
