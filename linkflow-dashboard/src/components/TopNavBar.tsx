@@ -16,6 +16,7 @@ interface TopNavBarProps {
   onSearchChange: (q: string) => void;
   userDisplayName?: string;
   userEmail?: string;
+  userAvatarUrl?: string;
   onSignOut: () => void;
   onOpenDiagnostics: () => void;
   hasSections: boolean;
@@ -37,6 +38,7 @@ export const TopNavBar: React.FC<TopNavBarProps> = ({
   onSearchChange,
   userDisplayName,
   userEmail,
+  userAvatarUrl,
   onSignOut,
   onOpenDiagnostics,
   hasSections,
@@ -46,6 +48,12 @@ export const TopNavBar: React.FC<TopNavBarProps> = ({
   const [isThemeOpen, setIsThemeOpen] = useState(false);
   const [isAddMenuOpen, setIsAddMenuOpen] = useState(false);
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
+  // Google's picture URL can occasionally fail to load (offline, blocked,
+  // expired) — fall back to initials rather than showing a broken image.
+  // Keyed by re-running whenever the URL itself changes (a different
+  // account signing in shouldn't inherit the previous one's failure).
+  const [avatarFailed, setAvatarFailed] = useState(false);
+  useEffect(() => setAvatarFailed(false), [userAvatarUrl]);
   const addMenuRef = useRef<HTMLDivElement>(null);
   const userMenuRef = useRef<HTMLDivElement>(null);
 
@@ -256,10 +264,20 @@ export const TopNavBar: React.FC<TopNavBarProps> = ({
           <div className="relative ml-1" ref={userMenuRef}>
             <button
               onClick={() => setIsUserMenuOpen(!isUserMenuOpen)}
-              className="grid size-8 place-items-center rounded-full border border-border-main bg-brand text-xs font-semibold text-text-inverse shadow-2xs cursor-pointer hover:ring-2 hover:ring-border-focus transition-all"
+              className="grid size-8 place-items-center rounded-full border border-border-main bg-brand text-xs font-semibold text-text-inverse shadow-2xs cursor-pointer hover:ring-2 hover:ring-border-focus transition-all overflow-hidden"
               title={userDisplayName || 'Account'}
             >
-              {initials}
+              {userAvatarUrl && !avatarFailed ? (
+                <img
+                  src={userAvatarUrl}
+                  alt=""
+                  referrerPolicy="no-referrer"
+                  className="w-full h-full object-cover"
+                  onError={() => setAvatarFailed(true)}
+                />
+              ) : (
+                initials
+              )}
             </button>
 
             {isUserMenuOpen && (

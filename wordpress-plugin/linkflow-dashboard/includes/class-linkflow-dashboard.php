@@ -219,6 +219,7 @@ class LinkFlow_Dashboard {
 				'id'          => get_current_user_id(),
 				'displayName' => wp_get_current_user()->display_name,
 				'email'       => wp_get_current_user()->user_email,
+				'avatarUrl'   => LinkFlow_Google::get_avatar_url( get_current_user_id() ),
 			),
 		);
 
@@ -616,7 +617,7 @@ class LinkFlow_Dashboard {
 				'token'       => $token,
 				'deviceId'    => absint( $wpdb->insert_id ),
 				'restUrl'     => esc_url_raw( rest_url( 'linkflow/v1/' ) ),
-				'user'        => array( 'id' => $user->ID, 'displayName' => $user->display_name, 'email' => $user->user_email ),
+				'user'        => array( 'id' => $user->ID, 'displayName' => $user->display_name, 'email' => $user->user_email, 'avatarUrl' => LinkFlow_Google::get_avatar_url( $user->ID ) ),
 			),
 			201,
 			array(
@@ -744,6 +745,7 @@ class LinkFlow_Dashboard {
 				'id'          => $user->ID,
 				'displayName' => $user->display_name,
 				'email'       => $user->user_email,
+				'avatarUrl'   => LinkFlow_Google::get_avatar_url( $user->ID ),
 			),
 			200,
 			array( 'operation' => 'verify_authenticated_user' )

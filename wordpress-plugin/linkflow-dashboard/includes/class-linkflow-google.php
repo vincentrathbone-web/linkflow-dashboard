@@ -29,6 +29,22 @@ class LinkFlow_Google {
 	const SCOPE           = 'openid email profile';
 	const STATE_PREFIX    = 'linkflow_google_state_';
 	const DEVICE_LABEL    = 'LinkFlow for Windows (Google)';
+	// The 'profile' scope's id_token/userinfo response includes a `picture`
+	// claim (Google's avatar image URL). Stored as user meta so it's still
+	// available on every later request (password sign-in, /me, the hosted
+	// page) — not just the moment of the Google OAuth round-trip itself.
+	const AVATAR_META_KEY = 'linkflow_google_avatar';
+
+	/**
+	 * The signed-in user's Google avatar image URL, if one was ever captured.
+	 * Safe to call for any user, Google-linked or not — returns '' either way.
+	 *
+	 * @param int $user_id WordPress user ID.
+	 * @return string
+	 */
+	public static function get_avatar_url( $user_id ) {
+		return (string) get_user_meta( $user_id, self::AVATAR_META_KEY, true );
+	}
 
 	/**
 	 * Register the two REST routes this flow needs.
@@ -156,9 +172,10 @@ class LinkFlow_Google {
 			return;
 		}
 
-		$email = sanitize_email( $claims['email'] );
-		$sub   = sanitize_text_field( $claims['sub'] ?? '' );
-		$name  = sanitize_text_field( $claims['name'] ?? '' );
+		$email   = sanitize_email( $claims['email'] );
+		$sub     = sanitize_text_field( $claims['sub'] ?? '' );
+		$name    = sanitize_text_field( $claims['name'] ?? '' );
+		$picture = esc_url_raw( (string) ( $claims['picture'] ?? '' ) );
 
 		$user = $sub ? WPMA_User::get_by_google_sub( $sub ) : null;
 
@@ -191,6 +208,10 @@ class LinkFlow_Google {
 			return;
 		}
 
+		if ( $picture ) {
+			update_user_meta( $user->ID, self::AVATAR_META_KEY, $picture );
+		}
+
 		$token = self::issue_device_token( $user->ID );
 
 		self::bounce_to_app(
@@ -200,6 +221,7 @@ class LinkFlow_Google {
 				'displayName' => $user->display_name,
 				'email'       => $user->user_email,
 				'userId'      => $user->ID,
+				'avatarUrl'   => $picture ? $picture : self::get_avatar_url( $user->ID ),
 			)
 		);
 	}

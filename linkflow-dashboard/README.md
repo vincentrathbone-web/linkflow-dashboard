@@ -2,7 +2,7 @@
 
 LinkFlow is a private, Windows desktop link workspace. Its React interface is packaged with Tauri and connects directly to the LinkFlow WordPress plugin API; it never renders the WordPress theme or Elementor.
 
-Current desktop version: **0.1.22**. Requires WordPress plugin **0.4.13 or later** for Google sign-in and desktop-initiated sign-out to work (0.4.33 is the paired, live release; 0.1.20-0.1.22 are all frontend-only, no PHP change). Plugin 0.4.26+ additionally required for the account dropdown to show the signed-in user's email (degrades gracefully to just the display name against older plugin versions).
+Current desktop version: **0.1.23**. Requires WordPress plugin **0.4.34 or later** for the Google account avatar to sync (older plugin versions just fall back to initials); **0.4.13 or later** for Google sign-in and desktop-initiated sign-out to work at all. Plugin 0.4.26+ additionally required for the account dropdown to show the signed-in user's email (degrades gracefully to just the display name against older plugin versions).
 
 The app checks for updates on launch via `@tauri-apps/plugin-updater` (see `UpdateBanner.tsx`), against a WordPress-hosted proxy in front of GitHub Releases — see the plugin README's "In-app updates" section for the full path. **Verified working end-to-end** on 2026-08-02: an installed 0.1.8 client detected the published 0.1.9 GitHub Release, downloaded it, installed it, and relaunched successfully.
 
@@ -65,6 +65,14 @@ For the MSVC x64 build used by this project, Tauri places the installers under `
 
 This is the canonical desktop changelog. The WordPress plugin keeps its own in
 [`wordpress-plugin/linkflow-dashboard/README.md`](../wordpress-plugin/linkflow-dashboard/README.md).
+
+### Version 0.1.23 (2026-08-19, with plugin 0.4.34)
+
+- **Google account profile picture now shown in the top-right account avatar**, replacing initials-only. `TopNavBar.tsx` renders the image from the new `avatarUrl` field (falls back to initials via an `onError` handler if the image ever fails to load — Google's URL can occasionally be offline/blocked/expired, or simply absent for a password-only account that's never used Google sign-in).
+- **A resized Timesheet or To-Do widget now shows a fade + bouncing down-arrow at the bottom when there's more content than fits**, instead of just clipping silently. Added to the shared `WidgetShell.tsx` (only relevant once a widget's been manually resized to a fixed height — the default content-sized state never clips anything). The fade is a CSS `mask-image` on the actual content rather than a solid-color overlay, so it fades correctly against the glass-card's own translucency/blur in any theme.
+- Plugin bumped to 0.4.34: added `LinkFlow_Google::get_avatar_url()` and the `avatarUrl` field across `/me`, `/desktop/session`, the Google OAuth callback, and the hosted page's injected config — the picture URL is captured once from Google's `picture` claim and persisted as user meta, so it survives password sign-ins and session restores too. No schema change.
+- **Found and fixed along the way:** `npm run tauri:dev` crashed instantly with an `EBUSY` file-watcher error — `vite.config.ts` had no exclusion for `src-tauri/target`, so Vite's watcher raced Cargo writing the debug `.dll` mid-build. Added the standard `ignored: ['**/src-tauri/target/**']` pattern.
+- Verified via `npm run lint`, `cargo check`, both Vite build modes, PHP `php -l`, and a signed `tauri build --target x86_64-pc-windows-msvc`; published as GitHub Release `v0.1.23`. Plugin deployed via `wp plugin install <zip> --force` over SSH; confirmed post-deploy `active 0.4.34`, DB version/tables unchanged.
 
 ### Version 0.1.22 (2026-08-19, with plugin 0.4.33)
 

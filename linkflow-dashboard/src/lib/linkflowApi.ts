@@ -14,6 +14,10 @@ interface LinkFlowUser {
   id: number;
   displayName: string;
   email?: string;
+  /** Google account profile picture, if this user ever signed in with Google
+   * (WordPress persists it as user meta, so it survives password sign-ins
+   * and session restores too — not just the Google OAuth round-trip). */
+  avatarUrl?: string;
 }
 
 interface LinkFlowRuntimeConfig {
@@ -188,6 +192,7 @@ export async function completeGoogleSignIn(callbackUrl: string): Promise<GoogleC
   const displayName = parsed.searchParams.get('displayName') || '';
   const email = parsed.searchParams.get('email') || undefined;
   const userId = Number(parsed.searchParams.get('userId') || 0);
+  const avatarUrl = parsed.searchParams.get('avatarUrl') || undefined;
 
   logSync('info', 'authentication', 'Google sign-in callback received from the system browser.', {
     requestId,
@@ -203,7 +208,7 @@ export async function completeGoogleSignIn(callbackUrl: string): Promise<GoogleC
     throw new Error('Google sign-in did not complete correctly. Please try again.');
   }
 
-  configureCloudBackend(restUrl, `Bearer ${token}`, { id: userId, displayName, email });
+  configureCloudBackend(restUrl, `Bearer ${token}`, { id: userId, displayName, email, avatarUrl });
 
   try {
     logSync('info', 'authentication', 'Verifying the Google-issued device token with GET /me.', { requestId });
@@ -227,7 +232,7 @@ export async function completeGoogleSignIn(callbackUrl: string): Promise<GoogleC
     logSync('success', 'authentication', 'Desktop session saved in Windows Credential Manager.', { requestId });
   }
 
-  return { id: userId, displayName, email };
+  return { id: userId, displayName, email, avatarUrl };
 }
 
 export async function restoreDesktopSession(): Promise<boolean> {

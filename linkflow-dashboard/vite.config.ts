@@ -25,7 +25,12 @@ export default defineConfig(({ mode }) => {
       // Do not modifyâfile watching is disabled to prevent flickering during agent edits.
       hmr: process.env.DISABLE_HMR !== 'true',
       // Disable file watching when DISABLE_HMR is true to save CPU during agent edits.
-      watch: process.env.DISABLE_HMR === 'true' ? null : {},
+      // src-tauri/target is Cargo's own build output, not app source — watching
+      // it races Cargo writing the debug .dll mid-build (Windows throws EBUSY on
+      // that watch() call, which crashes the whole dev server via an uncaught
+      // FSWatcher 'error' event, not just skips the file), so it's excluded
+      // regardless of the HMR toggle above.
+      watch: process.env.DISABLE_HMR === 'true' ? null : { ignored: ['**/src-tauri/target/**'] },
     },
   };
 });

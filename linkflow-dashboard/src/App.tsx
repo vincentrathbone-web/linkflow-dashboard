@@ -1361,6 +1361,7 @@ export default function App() {
         onSearchChange={setSearchQuery}
         userDisplayName={signedInUser?.displayName}
         userEmail={signedInUser?.email}
+        userAvatarUrl={signedInUser?.avatarUrl}
         onSignOut={handleSignOut}
         onOpenDiagnostics={() => void openDiagnosticsWindow()}
         hasSections={sections.length > 0}

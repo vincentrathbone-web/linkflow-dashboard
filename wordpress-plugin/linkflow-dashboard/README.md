@@ -1,6 +1,6 @@
 # LinkFlow Dashboard WordPress Plugin
 
-Current version: **0.4.33**, live on `controll.co.za`.
+Current version: **0.4.34**, live on `controll.co.za`.
 
 LinkFlow provides a closed, authenticated cloud workspace for the hosted React interface and Windows desktop client. Each WordPress user has an isolated workspace and up to 20 recoverable revisions. There are no public or shared workspace endpoints.
 
@@ -66,6 +66,10 @@ Run `./package.ps1` from the workspace root. It reads the slug/version from this
 This is the canonical plugin changelog. The desktop client keeps its own in
 [`linkflow-dashboard/README.md`](../../linkflow-dashboard/README.md); where a plugin release shipped
 alongside a desktop release, the pairing is noted here.
+
+### 2026-08-19 (fifth entry)
+
+- **0.4.34:** Added `LinkFlow_Google::get_avatar_url( $user_id )` (reads a new `linkflow_google_avatar` user meta key) and an `avatarUrl` field on the account info returned from `/me`, `/desktop/session`, the Google OAuth callback's hand-off to the desktop app, and the hosted page's injected `window.linkflowConfig`. `LinkFlow_Google::callback()` now captures Google's `picture` claim (from the `openid email profile` scope's id_token, or the `oauth2/v2/userinfo` fallback) and persists it via `update_user_meta()` the moment a Google sign-in completes, so it's available on every later request — password sign-ins, session restores — not just that OAuth round-trip. Backs the desktop client's new account-avatar display (see the desktop README's 0.1.23 changelog entry). No schema change: the URL lives in user meta, not a new column. Deployed via `wp plugin install <zip> --force` over SSH; confirmed post-deploy `wp plugin list` shows `active 0.4.34`, `linkflow_dashboard_db_version` unchanged (`1`), the three `linkflow_*` tables unchanged, and `GET /workspace` still 401s unauthenticated (route alive).
 
 ### 2026-08-19 (fourth entry)
 
