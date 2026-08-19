@@ -28,6 +28,10 @@ dist/
 *.log
 .DS_Store
 Thumbs.db
+*.code-workspace
+
+# Stray installer copies left in the repo root (release artifacts belong in dist/, not here)
+/*.exe
 
 # Stray local screenshot, not part of the project
 bf6ff55df431fe541262eeb9d870f80d2e57d4e9-2261x1271.avif
