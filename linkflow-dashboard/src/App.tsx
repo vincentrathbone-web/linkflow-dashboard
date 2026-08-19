@@ -69,6 +69,30 @@ function markWhatsNewSeen(userId: number): void {
   localStorage.setItem(WHATS_NEW_KEY, `${userId}:${WHATS_NEW_VERSION}`);
 }
 
+// Self-heals a panel layout loaded from local cache or the cloud: any widget
+// this build knows about (DEFAULT_PANEL_LAYOUT) that is missing from the
+// loaded layout gets appended onto its default column, rather than staying
+// hidden forever. Without this, `workspace.panelLayout ?? DEFAULT_PANEL_LAYOUT`
+// is all-or-nothing — a *stored* layout that predates a widget (an old
+// client's save, or one that round-tripped through one) permanently hides
+// that widget for this account, even after upgrading, because the stored
+// value is never null/undefined so the default never kicks in. There is no
+// UI to remove a widget from the layout, so any widget id missing here can
+// only mean "this layout predates it," never a deliberate user choice. See
+// HANDOVER.md 2026-08-19 "Known residual gap, not yet closed" for the
+// incident this closes. A widget already present is left exactly as the
+// user arranged it.
+function reconcilePanelLayout(loaded: PanelLayoutState | null | undefined): PanelLayoutState {
+  const widgets = loaded?.widgets ? loaded.widgets.map((w) => ({ ...w })) : [];
+  const present = new Set(widgets.map((w) => w.id));
+  DEFAULT_PANEL_LAYOUT.widgets.forEach((defaultWidget) => {
+    if (present.has(defaultWidget.id)) return;
+    const columnCount = widgets.filter((w) => w.column === defaultWidget.column).length;
+    widgets.push({ ...defaultWidget, order: columnCount });
+  });
+  return { widgets };
+}
+
 /** Open the sync diagnostics view in its own window instead of overlaying the app. */
 async function openDiagnosticsWindow(): Promise<void> {
   const url = `${window.location.pathname}${window.location.search}#diagnostics`;
@@ -305,7 +329,7 @@ export default function App() {
   const [panelLayout, setPanelLayout] = useState<PanelLayoutState>(() => {
     try {
       const saved = localStorage.getItem('linkflow_panel_layout');
-      const value = saved ? JSON.parse(saved) : DEFAULT_PANEL_LAYOUT;
+      const value = reconcilePanelLayout(saved ? JSON.parse(saved) : DEFAULT_PANEL_LAYOUT);
       logSync('info', 'local-cache', saved ? 'Panel layout loaded from local cache.' : 'No cached panel layout found; using defaults.', {
         storageKey: 'linkflow_panel_layout',
         serializedBytes: saved?.length ?? 0,
@@ -574,7 +598,7 @@ export default function App() {
           // won't carry todos/timesheet at all.
           setTodos(workspace.todos ?? []);
           setTimesheet(workspace.timesheet ?? DEFAULT_TIMESHEET);
-          setPanelLayout(workspace.panelLayout ?? DEFAULT_PANEL_LAYOUT);
+          setPanelLayout(reconcilePanelLayout(workspace.panelLayout));
         } else {
           logSync('warning', 'workspace', 'Server returned no workspace row; cached data remains active and will become the first cloud save.', {
             version,

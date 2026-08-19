@@ -1,6 +1,6 @@
 # LinkFlow Dashboard WordPress Plugin
 
-Current version: **0.4.32**, live on `controll.co.za`.
+Current version: **0.4.33**, live on `controll.co.za`.
 
 LinkFlow provides a closed, authenticated cloud workspace for the hosted React interface and Windows desktop client. Each WordPress user has an isolated workspace and up to 20 recoverable revisions. There are no public or shared workspace endpoints.
 
@@ -66,6 +66,10 @@ Run `./package.ps1` from the workspace root. It reads the slug/version from this
 This is the canonical plugin changelog. The desktop client keeps its own in
 [`linkflow-dashboard/README.md`](../../linkflow-dashboard/README.md); where a plugin release shipped
 alongside a desktop release, the pairing is noted here.
+
+### 2026-08-19 (fourth entry)
+
+- **0.4.33:** Version-only release, no PHP/server change — packaged specifically to pair with desktop 0.1.20, which closes the `panelLayout` "missing widget" gap flagged as not-yet-done in the 0.4.30 entry below. A new `reconcilePanelLayout()` in the frontend (`App.tsx`, shared by both the plugin build and the desktop client) now self-heals any widget id present in the app's default layout but absent from a loaded `panelLayout` — whether that's a stored `{"widgets": []}` from before 0.4.30, or, going forward, any future widget added while an account's stored layout still predates it — onto its default column, instead of leaving it permanently unrendered. Symptom this fixes: upgrading to a build with new widgets and having them not appear because the account's server-stored layout (correctly preserved by 0.4.30, but never *completed*) didn't know about them yet. Deployed via `wp plugin install <zip> --force` over SSH; confirmed post-deploy `wp plugin list` shows `active 0.4.33`, `linkflow_dashboard_db_version` unchanged (`1`), the three `linkflow_*` tables unchanged, and `GET /workspace` still 401s unauthenticated (route alive) — no schema drift, as expected for a version-only bump.
 
 ### 2026-08-19 (third entry)
 

@@ -2,7 +2,7 @@
 
 LinkFlow is a private, Windows desktop link workspace. Its React interface is packaged with Tauri and connects directly to the LinkFlow WordPress plugin API; it never renders the WordPress theme or Elementor.
 
-Current desktop version: **0.1.19**. Requires WordPress plugin **0.4.13 or later** for Google sign-in and desktop-initiated sign-out to work (0.4.32 is the paired, live release, needed for the pause/resume timer's `sessionStartedAt`/`pausedElapsedMs` fields — unchanged by 0.1.19, which is Rust-only). Plugin 0.4.26+ additionally required for the account dropdown to show the signed-in user's email (degrades gracefully to just the display name against older plugin versions).
+Current desktop version: **0.1.20**. Requires WordPress plugin **0.4.13 or later** for Google sign-in and desktop-initiated sign-out to work (0.4.33 is the paired, live release; it's a version-only bump, no PHP change — 0.1.20's fix is entirely frontend). Plugin 0.4.26+ additionally required for the account dropdown to show the signed-in user's email (degrades gracefully to just the display name against older plugin versions).
 
 The app checks for updates on launch via `@tauri-apps/plugin-updater` (see `UpdateBanner.tsx`), against a WordPress-hosted proxy in front of GitHub Releases — see the plugin README's "In-app updates" section for the full path. **Verified working end-to-end** on 2026-08-02: an installed 0.1.8 client detected the published 0.1.9 GitHub Release, downloaded it, installed it, and relaunched successfully.
 
@@ -65,6 +65,12 @@ For the MSVC x64 build used by this project, Tauri places the installers under `
 
 This is the canonical desktop changelog. The WordPress plugin keeps its own in
 [`wordpress-plugin/linkflow-dashboard/README.md`](../wordpress-plugin/linkflow-dashboard/README.md).
+
+### Version 0.1.20 (2026-08-19, with plugin 0.4.33)
+
+- **Fixed: upgrading could leave newly shipped widgets hidden.** A workspace's `panelLayout` is stored server-side and pulled down at startup; the fallback for a genuinely missing/null layout (`?? DEFAULT_PANEL_LAYOUT`) never fired for a stored layout that was merely *incomplete* — one saved before a widget shipped, or by an old client, still round-trips as a real, non-null value. The 0.4.30 data-loss fix (see plugin changelog) made sure the server stopped clobbering `panelLayout`, but never made an incomplete one whole — that gap was flagged as not-yet-closed in the 0.4.30 writeup. A new `reconcilePanelLayout()` in `App.tsx` now runs at both hydration points (the `linkflow_panel_layout` local-cache read and the cloud `GET /workspace` result): every widget already in the loaded layout is kept exactly as arranged, and any widget id present in the app's default layout but absent from what loaded gets appended onto its default column. There's no UI to remove a widget from the layout, so a missing id can only mean "this layout predates it," never a deliberate clear. Self-heals going forward too, since the next debounced save persists the completed layout.
+- Plugin bumped to 0.4.33: version-only, no PHP/server change — paired for release-tracking purposes only.
+- Verified via `npm run lint`, `cargo check`, and both Vite build modes; built and signed via `tauri build --target x86_64-pc-windows-msvc`, published as GitHub Release `v0.1.20`; plugin packaged via `package.ps1` and deployed via `wp plugin install <zip> --force` over SSH. Confirmed live via the update proxy and, on the plugin side, `wp plugin list` (`active 0.4.33`), unchanged DB version/tables, and a still-401ing `GET /workspace`.
 
 ### Version 0.1.19 (2026-08-19, with plugin 0.4.32)
 
