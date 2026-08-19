@@ -75,7 +75,7 @@ Last updated: 2026-08-19
 - Cloud host: `https://controll.co.za`
 - REST namespace: `/wp-json/linkflow/v1/`
 - Access model: registered WordPress users only; all workspaces are private and user-scoped
-- SSH access to the production host is configured locally as the `linkflow` alias (`~/.ssh/config`, key `~/.ssh/linkflow_ed25519`, `rs60.cphost.co.za:22000`, user `controllco`). WP-CLI is available on the server (`wp` on PATH).
+- SSH access to the production host is configured locally as the `linkflow` alias — see the local (not committed) `~/.ssh/config` for host/port/user and the key path. WP-CLI is available on the server (`wp` on PATH).
 
 ## In-app update feature
 
