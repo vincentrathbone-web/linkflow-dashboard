@@ -17,6 +17,10 @@ interface SettingsModalProps {
   onSetCatEnabled: (value: boolean) => void;
   weeklyTargetHours: number;
   onSetWeeklyTargetHours: (hours: number) => void;
+  timerWidgetEnabled: boolean;
+  onSetTimerWidgetEnabled: (value: boolean) => void;
+  trayTimerEnabled: boolean;
+  onSetTrayTimerEnabled: (value: boolean) => void;
 }
 
 export const SettingsModal: React.FC<SettingsModalProps> = ({
@@ -34,6 +38,10 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   onSetCatEnabled,
   weeklyTargetHours,
   onSetWeeklyTargetHours,
+  timerWidgetEnabled,
+  onSetTimerWidgetEnabled,
+  trayTimerEnabled,
+  onSetTrayTimerEnabled,
 }) => {
   if (!isOpen) return null;
 
@@ -218,6 +226,63 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
               className="w-20 bg-surface border border-border-main rounded-lg px-2.5 py-1.5 text-xs text-text-main text-right focus:outline-none focus:border-border-focus focus:ring-2 focus:ring-border-focus/20 transition-colors"
             />
           </div>
+
+          {/* Timer visibility outside the app window (desktop only — a browser tab has no tray/floating-window concept) */}
+          {isDesktopApp() && (
+            <>
+              <div data-tour="timer-widget-toggle" className="flex items-center justify-between gap-4 pt-4 border-t border-border-subtle">
+                <div className="flex flex-col gap-0.5">
+                  <label className="text-[11px] font-bold text-text-muted uppercase tracking-wider">
+                    Floating Timer Widget
+                  </label>
+                  <span className="text-xs text-text-muted">
+                    An always-on-top Start/Stop button with the running time, so the clock stays visible even when the app is minimized.
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  role="switch"
+                  aria-checked={timerWidgetEnabled}
+                  onClick={() => onSetTimerWidgetEnabled(!timerWidgetEnabled)}
+                  className={`relative shrink-0 w-11 h-6 rounded-full transition-colors ${
+                    timerWidgetEnabled ? 'bg-brand' : 'bg-surface-active'
+                  }`}
+                >
+                  <span
+                    className={`absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white shadow transition-transform ${
+                      timerWidgetEnabled ? 'translate-x-5' : 'translate-x-0'
+                    }`}
+                  />
+                </button>
+              </div>
+
+              <div data-tour="tray-timer-toggle" className="flex items-center justify-between gap-4 pt-4 border-t border-border-subtle">
+                <div className="flex flex-col gap-0.5">
+                  <label className="text-[11px] font-bold text-text-muted uppercase tracking-wider">
+                    Tray Icon Timer
+                  </label>
+                  <span className="text-xs text-text-muted">
+                    Shows the running time in the system tray, with a menu to start/stop the clock.
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  role="switch"
+                  aria-checked={trayTimerEnabled}
+                  onClick={() => onSetTrayTimerEnabled(!trayTimerEnabled)}
+                  className={`relative shrink-0 w-11 h-6 rounded-full transition-colors ${
+                    trayTimerEnabled ? 'bg-brand' : 'bg-surface-active'
+                  }`}
+                >
+                  <span
+                    className={`absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white shadow transition-transform ${
+                      trayTimerEnabled ? 'translate-x-5' : 'translate-x-0'
+                    }`}
+                  />
+                </button>
+              </div>
+            </>
+          )}
 
           {/* Backup & Data Management */}
           <div className="flex flex-col gap-3 pt-4 border-t border-border-subtle">

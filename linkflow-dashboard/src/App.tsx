@@ -6,6 +6,7 @@ import {
   NavTab,
   TodoItem,
   TimesheetState,
+  TimesheetSession,
   PanelLayoutState,
 } from './types';
 import {
@@ -16,6 +17,7 @@ import {
   INITIAL_LINKS,
 } from './data/initialData';
 import { buildGoogleFontsUrl, getFontPair } from './data/fontPairs';
+import { formatElapsed } from './lib/time';
 import { TopNavBar } from './components/TopNavBar';
 import { DashboardView } from './components/DashboardView';
 import { CollectionsView } from './components/CollectionsView';
@@ -37,6 +39,7 @@ import { OnboardingWizard } from './components/onboarding/OnboardingWizard';
 import { SortBoard } from './components/onboarding/SortBoard';
 import { WizardLinkDraft } from './lib/parseBulkLinks';
 import { UpdateBanner } from './components/UpdateBanner';
+import { WhatsNewTour, TourStep } from './components/WhatsNewTour';
 import { Cat } from './cat/Cat';
 import { describeWorkspace, logSync, textFingerprint } from './lib/syncDiagnostics';
 
@@ -48,6 +51,22 @@ function hasCompletedOnboarding(userId: number): boolean {
 
 function markOnboardingComplete(userId: number): void {
   localStorage.setItem(ONBOARDING_KEY, String(userId));
+}
+
+// Bump this string whenever a new "what's new" tour should show again to
+// everyone who already completed onboarding — a fresh feature batch, not
+// every release. Stored per-account (mirrors ONBOARDING_KEY's own pattern)
+// so a second account signing in on this device isn't skipped just because
+// a different account already saw this version's tour.
+const WHATS_NEW_VERSION = '2026-08-19-timer-widget';
+const WHATS_NEW_KEY = 'linkflow_whatsnew_seen_version';
+
+function hasSeenWhatsNew(userId: number): boolean {
+  return localStorage.getItem(WHATS_NEW_KEY) === `${userId}:${WHATS_NEW_VERSION}`;
+}
+
+function markWhatsNewSeen(userId: number): void {
+  localStorage.setItem(WHATS_NEW_KEY, `${userId}:${WHATS_NEW_VERSION}`);
 }
 
 /** Open the sync diagnostics view in its own window instead of overlaying the app. */
@@ -73,6 +92,58 @@ async function openDiagnosticsWindow(): Promise<void> {
   }
 
   window.open(url, 'linkflow-diagnostics', 'width=760,height=680');
+}
+
+const TIMER_WIDGET_WIDTH = 100;
+// Tall enough that the hover-revealed drag grip at the top never overlaps the
+// button below it, even though the button is vertically centered.
+const TIMER_WIDGET_HEIGHT = 132;
+const TIMER_WIDGET_MARGIN = 24;
+
+/** Opens the always-on-top floating timer widget (desktop only). Defaults to
+ * the bottom-right corner of the primary monitor; falls back to Tauri's own
+ * default placement if monitor info isn't available for any reason. */
+async function openTimerWidget(): Promise<void> {
+  const { WebviewWindow } = await import('@tauri-apps/api/webviewWindow');
+  const existing = await WebviewWindow.getByLabel('timer-widget');
+  if (existing) return;
+
+  const url = `${window.location.pathname}${window.location.search}#timer-widget`;
+  let x: number | undefined;
+  let y: number | undefined;
+  try {
+    const { primaryMonitor } = await import('@tauri-apps/api/window');
+    const monitor = await primaryMonitor();
+    if (monitor) {
+      const position = monitor.position.toLogical(monitor.scaleFactor);
+      const size = monitor.size.toLogical(monitor.scaleFactor);
+      x = Math.round(position.x + size.width - TIMER_WIDGET_WIDTH - TIMER_WIDGET_MARGIN);
+      y = Math.round(position.y + size.height - TIMER_WIDGET_HEIGHT - TIMER_WIDGET_MARGIN);
+    }
+  } catch {
+    // Fall back to Tauri's default window placement.
+  }
+
+  new WebviewWindow('timer-widget', {
+    url,
+    width: TIMER_WIDGET_WIDTH,
+    height: TIMER_WIDGET_HEIGHT,
+    x,
+    y,
+    decorations: false,
+    transparent: true,
+    shadow: false,
+    alwaysOnTop: true,
+    resizable: false,
+    skipTaskbar: true,
+    focus: false,
+  });
+}
+
+async function closeTimerWidget(): Promise<void> {
+  const { WebviewWindow } = await import('@tauri-apps/api/webviewWindow');
+  const existing = await WebviewWindow.getByLabel('timer-widget');
+  await existing?.close();
 }
 
 export default function App() {
@@ -229,6 +300,12 @@ export default function App() {
       return DEFAULT_TIMESHEET;
     }
   });
+  // Lets the once-subscribed timer-toggle event listener (see below) always
+  // read the latest currentSessionStart without needing to resubscribe.
+  const currentSessionStartRef = useRef(timesheet.currentSessionStart);
+  useEffect(() => {
+    currentSessionStartRef.current = timesheet.currentSessionStart;
+  }, [timesheet.currentSessionStart]);
 
   // LocalStorage Persistence - Panel Layout
   const [panelLayout, setPanelLayout] = useState<PanelLayoutState>(() => {
@@ -301,6 +378,7 @@ export default function App() {
   const [loggingSessionId, setLoggingSessionId] = useState<string | null>(null);
 
   const [isManualEntryOpen, setIsManualEntryOpen] = useState(false);
+  const [editingSession, setEditingSession] = useState<TimesheetSession | null>(null);
 
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isAdvancedThemeOpen, setIsAdvancedThemeOpen] = useState(false);
@@ -319,6 +397,33 @@ export default function App() {
     setCatEnabled(value);
     localStorage.setItem('linkflow_cat_enabled', String(value));
   };
+
+  // Same per-device, not-synced-to-the-cloud pattern as the cat toggle above —
+  // whether the always-on-top timer widget / tray icon are shown is a display
+  // preference for this machine, not workspace content.
+  const [timerWidgetEnabled, setTimerWidgetEnabled] = useState<boolean>(() => localStorage.getItem('linkflow_timer_widget_enabled') === 'true');
+  const handleSetTimerWidgetEnabled = (value: boolean) => {
+    setTimerWidgetEnabled(value);
+    localStorage.setItem('linkflow_timer_widget_enabled', String(value));
+  };
+  const [trayTimerEnabled, setTrayTimerEnabled] = useState<boolean>(() => localStorage.getItem('linkflow_tray_timer_enabled') === 'true');
+  const handleSetTrayTimerEnabled = (value: boolean) => {
+    setTrayTimerEnabled(value);
+    localStorage.setItem('linkflow_tray_timer_enabled', String(value));
+  };
+
+  const [showWhatsNewTour, setShowWhatsNewTour] = useState(false);
+  // Fires once the real app is on screen for a returning user (not someone
+  // still going through first-run onboarding, who gets these features
+  // explained as part of that flow instead — see markWhatsNewSeen in the
+  // onboarding onComplete handler below). isWorkspaceReady is included so
+  // this doesn't race the initial cloud/localStorage load.
+  useEffect(() => {
+    if (!signedInUser || !isWorkspaceReady) return;
+    if (!hasCompletedOnboarding(signedInUser.id)) return;
+    if (hasSeenWhatsNew(signedInUser.id)) return;
+    setShowWhatsNewTour(true);
+  }, [signedInUser, isWorkspaceReady]);
   const handleSetLocalBgImage = (dataUrl: string | null) => {
     setLocalBgImageState(dataUrl);
     try {
@@ -735,10 +840,114 @@ export default function App() {
     }));
   };
 
+  // Always-on-top timer widget: open/close its window as the Settings toggle
+  // changes. Desktop only — the concept doesn't exist on the hosted web page.
+  useEffect(() => {
+    if (!isDesktopApp()) return;
+    if (timerWidgetEnabled) {
+      void openTimerWidget();
+    } else {
+      void closeTimerWidget();
+    }
+  }, [timerWidgetEnabled]);
+
+  // Tray icon: tell Rust to show/hide the one tray icon it built at startup.
+  useEffect(() => {
+    if (!isDesktopApp()) return;
+    void import('@tauri-apps/api/core').then(({ invoke }) =>
+      invoke('set_tray_visible', { visible: trayTimerEnabled }).catch(() => {})
+    );
+  }, [trayTimerEnabled]);
+
+  // Broadcasts the running/stopped state to the floating widget window (which
+  // has no access to this component's React state) and answers its "I just
+  // opened, what's the current state?" ping — the widget then computes its own
+  // live elapsed time locally from this one value, the same way
+  // TimesheetPanel.tsx already does, rather than needing a per-second event.
+  useEffect(() => {
+    if (!isDesktopApp()) return undefined;
+    let unlistenReady: (() => void) | undefined;
+    void (async () => {
+      const { emit, listen } = await import('@tauri-apps/api/event');
+      const broadcast = () => void emit('linkflow://timesheet-state', { currentSessionStart: timesheet.currentSessionStart });
+      broadcast();
+      unlistenReady = await listen('linkflow://timer-widget-ready', broadcast);
+    })();
+    return () => unlistenReady?.();
+  }, [timesheet.currentSessionStart]);
+
+  // Both the floating widget's button and the tray menu's "Start/Stop Clock"
+  // item toggle the clock via this one event, regardless of which surface sent
+  // it — subscribed once for the app's lifetime, so a ref (rather than the
+  // `timesheet` state itself) tracks the latest currentSessionStart for it to
+  // read without needing to resubscribe on every Start/Stop.
+  useEffect(() => {
+    if (!isDesktopApp()) return undefined;
+    let unlisten: (() => void) | undefined;
+    void (async () => {
+      const { listen } = await import('@tauri-apps/api/event');
+      unlisten = await listen('linkflow://timer-toggle', () => {
+        if (currentSessionStartRef.current) {
+          handleStopClock();
+        } else {
+          handleStartClock();
+        }
+      });
+    })();
+    return () => unlisten?.();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Pushes the live elapsed time into the tray icon's tooltip once a second
+  // while the clock is running and the tray timer is enabled — matches the
+  // same tick TimesheetPanel.tsx already runs for its own display, just also
+  // forwarded to Rust since the tray has no view of React state on its own.
+  useEffect(() => {
+    if (!isDesktopApp() || !trayTimerEnabled) return undefined;
+
+    const pushTooltip = (text: string) =>
+      void import('@tauri-apps/api/core').then(({ invoke }) => invoke('set_tray_tooltip', { text }).catch(() => {}));
+
+    if (!timesheet.currentSessionStart) {
+      pushTooltip('LinkFlow — clocked out');
+      return undefined;
+    }
+
+    const start = timesheet.currentSessionStart;
+    const tick = () => pushTooltip(`LinkFlow — ${formatElapsed(Date.now() - Date.parse(start))}`);
+    tick();
+    const interval = window.setInterval(tick, 1000);
+    return () => window.clearInterval(interval);
+  }, [trayTimerEnabled, timesheet.currentSessionStart]);
+
+  // Swaps the tray icon itself between the blue-play and red-stop glyph, drawn
+  // natively in Rust (see tray_icon_image() in lib.rs) — only on Start/Stop
+  // transitions, not every tick, since the icon doesn't show elapsed time.
+  useEffect(() => {
+    if (!isDesktopApp() || !trayTimerEnabled) return;
+    void import('@tauri-apps/api/core').then(({ invoke }) =>
+      invoke('set_tray_running', { running: timesheet.currentSessionStart !== null }).catch(() => {})
+    );
+  }, [trayTimerEnabled, timesheet.currentSessionStart]);
+
   const handleAddManualSession = (entry: { activity: string; start: string; end: string; durationSeconds: number }) => {
     setTimesheet((prev) => ({
       ...prev,
       sessions: [...prev.sessions, { id: 'session-' + Date.now(), ...entry }],
+    }));
+  };
+
+  const handleUpdateSession = (sessionId: string, entry: { activity: string; start: string; end: string; durationSeconds: number }) => {
+    setTimesheet((prev) => ({
+      ...prev,
+      sessions: prev.sessions.map((s) => (s.id === sessionId ? { ...s, ...entry } : s)),
+    }));
+  };
+
+  const handleDeleteSession = (sessionId: string) => {
+    setTimesheet((prev) => ({
+      ...prev,
+      sessions: prev.sessions.filter((s) => s.id !== sessionId),
     }));
   };
 
@@ -813,6 +1022,45 @@ export default function App() {
         background: 'radial-gradient(circle at 50% 0%, #f8fafc 0%, #f1f5f9 60%, #e2e8f0 100%)',
       };
 
+  // Points at the real controls introduced by the 2026-08-19 timer-widget
+  // batch. The tray icon and the floating widget window are themselves
+  // outside the DOM (a system tray icon, a second OS window) — there's
+  // nothing on screen to point a callout at directly — so instead the tour
+  // opens Settings itself and points at the two toggles that turn them on.
+  // Both toggle steps open Settings on `onEnter` (harmless if it's already
+  // open) so the tour still lands correctly even if a step is auto-skipped;
+  // only the *second* toggle step closes it again on `onExit`, once the
+  // tour is done with the modal — closing on every step would flash the
+  // modal shut and back open between them.
+  const whatsNewSteps: TourStep[] = [
+    ...(isDesktopApp()
+      ? [
+          {
+            id: 'timer-widget-toggle',
+            selector: '[data-tour="timer-widget-toggle"]',
+            title: 'Keep the timer visible anywhere',
+            body: 'Turn on a floating always-on-top Play/Stop widget, so the running clock stays visible even while LinkFlow is minimized.',
+            onEnter: () => setIsSettingsOpen(true),
+          },
+          {
+            id: 'tray-timer-toggle',
+            selector: '[data-tour="tray-timer-toggle"]',
+            title: 'Or use the tray icon',
+            body: 'This one shows the running time in the system tray instead, with a right-click menu to start or stop the clock.',
+            onEnter: () => setIsSettingsOpen(true),
+            onExit: () => setIsSettingsOpen(false),
+          },
+        ]
+      : []),
+    {
+      id: 'session-edit-delete',
+      selector: '[data-tour="timesheet-panel"]',
+      title: 'Fix or remove a logged session',
+      body: "Hover any entry in Today's sessions to edit its details or delete it — no need to start over on a mistake or a test run.",
+      onEnter: () => setActiveTab('dashboard'),
+    },
+  ];
+
   if (isRestoringDesktopSession) {
     return <div className="min-h-screen grid place-items-center bg-slate-950 text-sm text-slate-300">Restoring your LinkFlow session…</div>;
   }
@@ -838,6 +1086,10 @@ export default function App() {
             linkCount: newLinks.length,
           });
           markOnboardingComplete(signedInUser.id);
+          // A brand-new account already has these features from day one, so
+          // the "what's new" tour (aimed at existing users catching up on a
+          // later release) would just be redundant right after onboarding.
+          markWhatsNewSeen(signedInUser.id);
           setSections((prev) => [...prev, ...newSections]);
           setLinks((prev) => [...prev, ...newLinks]);
         }}
@@ -1009,7 +1261,15 @@ export default function App() {
                     timesheet={timesheet}
                     onStartClock={handleStartClock}
                     onStopClock={handleStopClock}
-                    onOpenManualEntry={() => setIsManualEntryOpen(true)}
+                    onOpenManualEntry={() => {
+                      setEditingSession(null);
+                      setIsManualEntryOpen(true);
+                    }}
+                    onEditSession={(session) => {
+                      setEditingSession(session);
+                      setIsManualEntryOpen(true);
+                    }}
+                    onDeleteSession={handleDeleteSession}
                   />
                 )
               }
@@ -1126,10 +1386,19 @@ export default function App() {
 
       <ManualTimeEntryModal
         isOpen={isManualEntryOpen}
-        onClose={() => setIsManualEntryOpen(false)}
-        onSave={(entry) => {
-          handleAddManualSession(entry);
+        editingSession={editingSession}
+        onClose={() => {
           setIsManualEntryOpen(false);
+          setEditingSession(null);
+        }}
+        onSave={(entry) => {
+          if (editingSession) {
+            handleUpdateSession(editingSession.id, entry);
+          } else {
+            handleAddManualSession(entry);
+          }
+          setIsManualEntryOpen(false);
+          setEditingSession(null);
         }}
       />
 
@@ -1151,6 +1420,10 @@ export default function App() {
         onSetCatEnabled={handleSetCatEnabled}
         weeklyTargetHours={timesheet.weeklyTargetHours}
         onSetWeeklyTargetHours={handleSetWeeklyTargetHours}
+        timerWidgetEnabled={timerWidgetEnabled}
+        onSetTimerWidgetEnabled={handleSetTimerWidgetEnabled}
+        trayTimerEnabled={trayTimerEnabled}
+        onSetTrayTimerEnabled={handleSetTrayTimerEnabled}
       />
 
       <AdvancedThemeModal
@@ -1162,6 +1435,21 @@ export default function App() {
         localBgImage={localBgImage}
         onSetLocalBgImage={handleSetLocalBgImage}
       />
+
+      {showWhatsNewTour && signedInUser && (
+        <WhatsNewTour
+          steps={whatsNewSteps}
+          onFinish={() => {
+            // Belt-and-braces: also closes Settings if the tour is skipped
+            // while still on the first toggle step, which has no `onExit`
+            // of its own (only the second toggle step's `onExit` normally
+            // closes it — see the comment above whatsNewSteps).
+            setIsSettingsOpen(false);
+            markWhatsNewSeen(signedInUser.id);
+            setShowWhatsNewTour(false);
+          }}
+        />
+      )}
     </div>
   );
 }

@@ -1,11 +1,14 @@
 import React, { useEffect, useState } from 'react';
 import { TimesheetSession, TimesheetState } from '../types';
+import { formatElapsed } from '../lib/time';
 
 interface TimesheetPanelProps {
   timesheet: TimesheetState;
   onStartClock: () => void;
   onStopClock: () => void;
   onOpenManualEntry: () => void;
+  onEditSession: (session: TimesheetSession) => void;
+  onDeleteSession: (id: string) => void;
 }
 
 const PlusIcon: React.FC = () => (
@@ -46,13 +49,19 @@ const CheckIcon: React.FC = () => (
   </svg>
 );
 
-function formatElapsed(ms: number): string {
-  const totalSeconds = Math.max(0, Math.floor(ms / 1000));
-  const hours = Math.floor(totalSeconds / 3600);
-  const minutes = Math.floor((totalSeconds % 3600) / 60);
-  const seconds = totalSeconds % 60;
-  return [hours, minutes, seconds].map((n) => String(n).padStart(2, '0')).join(':');
-}
+const EditIcon: React.FC = () => (
+  <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round">
+    <path d="M16.5 3.5a2.12 2.12 0 013 3L7 19l-4 1 1-4L16.5 3.5z" />
+  </svg>
+);
+
+const TrashIcon: React.FC = () => (
+  <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round">
+    <path d="M4 7h16" />
+    <path d="M9 7V5a1 1 0 011-1h4a1 1 0 011 1v2" />
+    <path d="M6 7l1 13a1 1 0 001 1h8a1 1 0 001-1l1-13" />
+  </svg>
+);
 
 function isSameLocalDay(a: Date, b: Date): boolean {
   return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
@@ -97,7 +106,14 @@ function buildSessionsClipboard(sessions: TimesheetSession[]): { text: string; h
   return { text, html };
 }
 
-export const TimesheetPanel: React.FC<TimesheetPanelProps> = ({ timesheet, onStartClock, onStopClock, onOpenManualEntry }) => {
+export const TimesheetPanel: React.FC<TimesheetPanelProps> = ({
+  timesheet,
+  onStartClock,
+  onStopClock,
+  onOpenManualEntry,
+  onEditSession,
+  onDeleteSession,
+}) => {
   const [now, setNow] = useState(() => Date.now());
   const [copyState, setCopyState] = useState<'idle' | 'copied' | 'error'>('idle');
   const isRunning = timesheet.currentSessionStart !== null;
@@ -161,7 +177,7 @@ export const TimesheetPanel: React.FC<TimesheetPanelProps> = ({ timesheet, onSta
   };
 
   return (
-    <div className="glass-card rounded-xl p-4">
+    <div data-tour="timesheet-panel" className="glass-card rounded-xl p-4">
       <div className="flex items-center gap-2.5 mb-3">
         <div className="w-8 h-8 rounded-lg bg-surface-subtle border border-border-subtle flex items-center justify-center text-text-muted">
           <ClockIcon />
@@ -231,12 +247,39 @@ export const TimesheetPanel: React.FC<TimesheetPanelProps> = ({ timesheet, onSta
           </div>
           <div className="flex flex-col gap-2.5">
             {todaySessions.map((session) => (
-              <div key={session.id} className="flex flex-col gap-0.5 text-xs">
-                <div className="flex items-center justify-between gap-2">
+              <div key={session.id} className="group flex flex-col gap-0.5 text-xs">
+                <div className="relative flex items-center justify-between gap-2">
                   <span className="text-text-main font-semibold truncate" title={session.activity || undefined}>
                     {session.activity || 'No description'}
                   </span>
-                  <span className="font-bold text-text-main shrink-0">{formatElapsed(session.durationSeconds * 1000)}</span>
+                  <span className="font-bold text-text-main shrink-0 group-hover:opacity-0 transition-opacity">
+                    {formatElapsed(session.durationSeconds * 1000)}
+                  </span>
+                  {/* Replaces the duration on hover — edit reopens the manual-entry
+                      form pre-filled with this session; delete removes it outright
+                      (e.g. a test run or an accidental Start). No background here:
+                      the duration span above already fades to opacity-0 in step, so
+                      nothing needs covering. */}
+                  <div className="absolute right-0 flex items-center gap-3 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <button
+                      type="button"
+                      onClick={() => onEditSession(session)}
+                      aria-label="Edit this session"
+                      title="Edit"
+                      className="text-text-subtle hover:text-text-main transition-colors"
+                    >
+                      <EditIcon />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => onDeleteSession(session.id)}
+                      aria-label="Delete this session"
+                      title="Delete"
+                      className="text-text-subtle hover:text-danger transition-colors"
+                    >
+                      <TrashIcon />
+                    </button>
+                  </div>
                 </div>
                 <span className="text-text-subtle text-[11px]">
                   {formatTime(session.start)} – {formatTime(session.end)}

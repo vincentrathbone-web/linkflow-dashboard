@@ -1,6 +1,6 @@
 # LinkFlow Dashboard WordPress Plugin
 
-Current version: **0.4.30**, live on `controll.co.za`.
+Current version: **0.4.31**, packaged but not yet deployed (0.4.30 is still what's live on `controll.co.za`).
 
 LinkFlow provides a closed, authenticated cloud workspace for the hosted React interface and Windows desktop client. Each WordPress user has an isolated workspace and up to 20 recoverable revisions. There are no public or shared workspace endpoints.
 
@@ -66,6 +66,10 @@ Run `./package.ps1` from the workspace root. It reads the slug/version from this
 This is the canonical plugin changelog. The desktop client keeps its own in
 [`linkflow-dashboard/README.md`](../../linkflow-dashboard/README.md); where a plugin release shipped
 alongside a desktop release, the pairing is noted here.
+
+### 2026-08-19 (second entry)
+
+- **0.4.31:** Version-only release, no PHP/server change — packaged specifically to pair with desktop 0.1.17 (the floating-widget/tray/session-edit-delete polish fixes and the new "What's New" coach-mark tour, all frontend/Rust-only). Not yet deployed to `controll.co.za`.
 
 ### 2026-08-19
 

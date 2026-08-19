@@ -1,26 +1,46 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import { TimesheetSession } from '../types';
 
 interface ManualTimeEntryModalProps {
   isOpen: boolean;
   onClose: () => void;
   onSave: (entry: { activity: string; start: string; end: string; durationSeconds: number }) => void;
+  /** When set, the form is pre-filled from this session and saving updates it
+   * in place instead of adding a new one — used by the "edit" hover action on
+   * a "Today's sessions" row. */
+  editingSession?: TimesheetSession | null;
 }
 
-/** For a forgotten Start/Stop: lets the activity, start time, and end time be
- * entered directly, with the duration always derived from start/end rather
- * than typed in separately, so it can never drift out of sync with them. */
-export const ManualTimeEntryModal: React.FC<ManualTimeEntryModalProps> = ({ isOpen, onClose, onSave }) => {
+/** ISO datetime -> the local-time string a `datetime-local` input expects
+ * (`YYYY-MM-DDTHH:mm`) — the inverse of what `handleSubmit` does with
+ * `new Date(value).toISOString()`. */
+function toDatetimeLocalValue(iso: string): string {
+  const d = new Date(iso);
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
+/** For a forgotten Start/Stop (or correcting one already recorded): lets the
+ * activity, start time, and end time be entered directly, with the duration
+ * always derived from start/end rather than typed in separately, so it can
+ * never drift out of sync with them. */
+export const ManualTimeEntryModal: React.FC<ManualTimeEntryModalProps> = ({ isOpen, onClose, onSave, editingSession }) => {
   const [activity, setActivity] = useState('');
   const [start, setStart] = useState('');
   const [end, setEnd] = useState('');
 
   useEffect(() => {
-    if (isOpen) {
+    if (!isOpen) return;
+    if (editingSession) {
+      setActivity(editingSession.activity ?? '');
+      setStart(toDatetimeLocalValue(editingSession.start));
+      setEnd(toDatetimeLocalValue(editingSession.end));
+    } else {
       setActivity('');
       setStart('');
       setEnd('');
     }
-  }, [isOpen]);
+  }, [isOpen, editingSession]);
 
   const durationSeconds = useMemo(() => {
     if (!start || !end) return null;
@@ -59,7 +79,9 @@ export const ManualTimeEntryModal: React.FC<ManualTimeEntryModalProps> = ({ isOp
         onClick={(e) => e.stopPropagation()}
       >
         <div className="px-6 py-4 border-b border-border-subtle flex justify-between items-center bg-surface-subtle">
-          <h2 className="font-heading text-base font-bold text-text-main m-0">Add Time Entry</h2>
+          <h2 className="font-heading text-base font-bold text-text-main m-0">
+            {editingSession ? 'Edit Time Entry' : 'Add Time Entry'}
+          </h2>
           <button
             onClick={onClose}
             type="button"
@@ -130,7 +152,7 @@ export const ManualTimeEntryModal: React.FC<ManualTimeEntryModalProps> = ({ isOp
               disabled={durationSeconds === null}
               className="px-4 py-2 rounded-xl text-xs font-semibold bg-brand text-text-inverse hover:bg-brand-hover shadow-xs transition-colors active:scale-95 disabled:opacity-40 disabled:pointer-events-none"
             >
-              Add Entry
+              {editingSession ? 'Save Changes' : 'Add Entry'}
             </button>
           </div>
         </form>
