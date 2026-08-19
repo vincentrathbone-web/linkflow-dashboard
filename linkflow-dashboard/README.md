@@ -2,7 +2,7 @@
 
 LinkFlow is a private, Windows desktop link workspace. Its React interface is packaged with Tauri and connects directly to the LinkFlow WordPress plugin API; it never renders the WordPress theme or Elementor.
 
-Current desktop version: **0.1.21**. Requires WordPress plugin **0.4.13 or later** for Google sign-in and desktop-initiated sign-out to work (0.4.33 is the paired, live release; both 0.1.20 and 0.1.21 are frontend-only, no PHP change). Plugin 0.4.26+ additionally required for the account dropdown to show the signed-in user's email (degrades gracefully to just the display name against older plugin versions).
+Current desktop version: **0.1.22**. Requires WordPress plugin **0.4.13 or later** for Google sign-in and desktop-initiated sign-out to work (0.4.33 is the paired, live release; 0.1.20-0.1.22 are all frontend-only, no PHP change). Plugin 0.4.26+ additionally required for the account dropdown to show the signed-in user's email (degrades gracefully to just the display name against older plugin versions).
 
 The app checks for updates on launch via `@tauri-apps/plugin-updater` (see `UpdateBanner.tsx`), against a WordPress-hosted proxy in front of GitHub Releases — see the plugin README's "In-app updates" section for the full path. **Verified working end-to-end** on 2026-08-02: an installed 0.1.8 client detected the published 0.1.9 GitHub Release, downloaded it, installed it, and relaunched successfully.
 
@@ -65,6 +65,12 @@ For the MSVC x64 build used by this project, Tauri places the installers under `
 
 This is the canonical desktop changelog. The WordPress plugin keeps its own in
 [`wordpress-plugin/linkflow-dashboard/README.md`](../wordpress-plugin/linkflow-dashboard/README.md).
+
+### Version 0.1.22 (2026-08-19, with plugin 0.4.33)
+
+- **Fixed: stopping the timer via the floating widget's hold gesture could immediately start a new session.** Not caused by the 0.1.21 popup itself — a pre-existing race in `useHoldToStop.ts`. The 1.5s hold's `onHoldComplete` fires while the pointer is typically still physically down; the widget's state broadcast back from the main window (confirming the stop) is fast enough that it can flip the widget's local `holdEnabled` (derived from `phase !== 'idle'`) to `false` *before* the user actually releases. The trailing release then hit the `else if (!holdEnabled)` branch — meant for "a plain click while already idle" — and fired a fresh start. Fixed with a `completedRef` that marks a press as already-resolved once `onHoldComplete` fires, so the trailing release is ignored regardless of what `holdEnabled` changes to in between. Shared by both the floating widget and the in-app Timesheet panel button. The tray icon's own hold-to-stop (separate Rust logic, decides toggle-vs-stop from elapsed time with no phase dependency) was never affected.
+- **Confirmed working by the user's own hands-on testing.**
+- Verified via `npm run lint`, `cargo check`, both Vite build modes, and a signed `tauri build --target x86_64-pc-windows-msvc`; published as GitHub Release `v0.1.22`. No plugin change — still pairs with the live 0.4.33.
 
 ### Version 0.1.21 (2026-08-19, with plugin 0.4.33)
 

@@ -15,6 +15,15 @@ export function useHoldToStop(onShortPress: () => void, onHoldComplete: () => vo
   const holdStartRef = useRef(0);
   const rafRef = useRef<number | null>(null);
   const resetTimeoutRef = useRef<number | null>(null);
+  // True once onHoldComplete has fired for the press currently in progress.
+  // The physical release (pointerup) that follows a completed hold usually
+  // arrives after the caller has already reacted to the stop — e.g. the
+  // broadcast round-trip that flips the floating widget's own `holdEnabled`
+  // (derived from phase) to false can land before the user actually lifts
+  // their finger. Without this guard, that stale-but-now-false holdEnabled
+  // makes the trailing pointerup misread as "a plain click while idle" and
+  // fire onShortPress — restarting the timer immediately after stopping it.
+  const completedRef = useRef(false);
 
   const cancelHold = useCallback(() => {
     holdingRef.current = false;
@@ -36,6 +45,7 @@ export function useHoldToStop(onShortPress: () => void, onHoldComplete: () => vo
     setHoldProgress(progress);
     if (progress >= 1) {
       holdingRef.current = false;
+      completedRef.current = true;
       onHoldComplete();
       // Hold the full fill visible for a beat (the button reads as "stopped")
       // before resetting, instead of snapping straight back to idle — React
@@ -49,6 +59,7 @@ export function useHoldToStop(onShortPress: () => void, onHoldComplete: () => vo
 
   const onPointerDown = useCallback(() => {
     setIsPressed(true);
+    completedRef.current = false;
     if (holdEnabled) {
       holdingRef.current = true;
       holdStartRef.current = Date.now();
@@ -58,6 +69,12 @@ export function useHoldToStop(onShortPress: () => void, onHoldComplete: () => vo
 
   const onPointerUp = useCallback(() => {
     setIsPressed(false);
+    if (completedRef.current) {
+      // The hold already completed and fired onHoldComplete earlier in this
+      // same press — this release is trailing cleanup, not a new gesture.
+      completedRef.current = false;
+      return;
+    }
     if (holdingRef.current) {
       cancelHold();
       onShortPress();
