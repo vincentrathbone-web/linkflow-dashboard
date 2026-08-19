@@ -1,96 +1,126 @@
+<div align="center">
+
 # LinkFlow Dashboard
 
-LinkFlow is a closed, per-user link workspace with two clients sharing one WordPress-hosted data service:
+**A private, cross-platform link workspace.**
+One account, one dataset, one interface — shared between a native Windows desktop app and an authenticated WordPress-hosted page.
 
-- A React 19/Vite interface packaged as a native Windows application with Tauri.
-- An authenticated WordPress-hosted interface provided by the same plugin bundle.
-- A private REST API and per-user revision history stored by the WordPress plugin.
+[![Desktop](https://img.shields.io/badge/desktop-0.1.19-2563eb)](./linkflow-dashboard/README.md)
+[![Plugin](https://img.shields.io/badge/WordPress%20plugin-0.4.32-21759b?logo=wordpress&logoColor=white)](./wordpress-plugin/linkflow-dashboard/README.md)
+[![Platform](https://img.shields.io/badge/platform-Windows-0078D6?logo=windows&logoColor=white)](#)
+[![React](https://img.shields.io/badge/React-19-61DAFB?logo=react&logoColor=white)](#)
+[![Tauri](https://img.shields.io/badge/Tauri-v2-FFC131?logo=tauri&logoColor=white)](#)
+[![Private](https://img.shields.io/badge/repo-private-red)](#)
 
-There are no public workspaces, public URLs, or shared tabs.
+</div>
+
+---
+
+LinkFlow is a private link organizer — sections, collections, drag-to-sort, custom theming — plus a To-Do list and a timesheet with a Play/Pause/Stop clock, all synced to a single per-user cloud workspace. There are no public workspaces, no shared tabs, and no anonymous endpoints: every byte is scoped to an authenticated WordPress user.
+
+## Why two clients, one app
+
+The React interface is written once and runs in two places:
+
+- **Windows desktop app** (Tauri v2) — the primary client. Signs in once with a WordPress username/password, then talks to the REST API directly over `X-LinkFlow-Token`. Never renders WordPress, the active theme, or Elementor.
+- **Hosted WordPress page** — the same interface, dropped in via a `[linkflow_dashboard]` shortcode, authenticated by the visitor's own WordPress session. Useful as a recovery/device-switch path.
+
+WordPress owns identity, per-user storage, sanitization, and revision history for both. See [`HANDOVER.md`](./HANDOVER.md) for the full architectural history and every lesson learned building it.
+
+## Features
+
+| | |
+| --- | --- |
+| **Link workspace** | Sections and collections, drag-to-sort onboarding wizard, bulk import, custom theming (font pairs + accent presets, fully tokenized — no hardcoded colors) |
+| **To-Do list** | Grouped Today/This Week, optional priority flags and due dates |
+| **Timesheet** | A real idle → running → paused → stopped clock (not just on/off), manual time entry, an activity prompt on stop, and a one-click Excel/email export of the day's sessions |
+| **Floating timer widget** | An always-on-top, embossed Play/Pause/Stop button that floats over the desktop — click to start/resume/pause, hold 1.5s to stop |
+| **System tray control** | The same three-state control from the notification area, including a real press-and-hold-to-stop gesture, with "minimize to tray" on window close |
+| **Daily inspiration** | An optional quote or Bible-verse bubble, fetched and cached server-side — no client-side third-party calls |
+| **Virtual pet** | An optional animated cat that wanders the dashboard and can be picked up and dropped — pure SVG, no image assets |
+| **Auto-updates** | Signed releases via `@tauri-apps/plugin-updater`, proxied through the WordPress plugin so a private GitHub repo's releases stay reachable without exposing a token to the client |
+
+## Architecture
+
+```mermaid
+flowchart LR
+    subgraph Clients
+        Desktop["Windows Desktop App<br/>Tauri v2 + React 19"]
+        Hosted["Hosted WordPress Page<br/>same React bundle"]
+    end
+
+    subgraph WP["WordPress Plugin"]
+        API["REST API<br/>/wp-json/linkflow/v1"]
+        DB[("Per-user workspace<br/>+ 20-revision history")]
+        Proxy["GitHub Releases proxy<br/>(keeps the token server-side)"]
+    end
+
+    GH[("Private GitHub Releases")]
+
+    Desktop -- "X-LinkFlow-Token" --> API
+    Hosted -- "WP session / nonce" --> API
+    API --> DB
+    Desktop -- "checks for updates" --> Proxy
+    Proxy --> GH
+```
+
+Writes are debounced 800ms client-side, versioned server-side (`X-LinkFlow-Version`), and rejected with a 409 on a stale write — the desktop app is the authoritative, always-push client; the server is the recovery/device-switch path, not a live-sync backend.
 
 ## Current releases
 
-| Component | Version | Source |
-| --- | ---: | --- |
-| WordPress plugin | 0.4.30 (live on `controll.co.za`) | `wordpress-plugin/linkflow-dashboard/` |
-| Windows desktop app | 0.1.11 | `linkflow-dashboard/src-tauri/` |
+| Component | Version | Status | Source |
+| --- | ---: | --- | --- |
+| Windows desktop app | **0.1.19** | Live (GitHub Release) | `linkflow-dashboard/src-tauri/` |
+| WordPress plugin | **0.4.32** | Live on `controll.co.za` | `wordpress-plugin/linkflow-dashboard/` |
 
-Source is hosted on GitHub: [`vincentrathbone-web/linkflow-dashboard`](https://github.com/vincentrathbone-web/linkflow-dashboard) (private repo).
+Each component keeps its own changelog — see their READMEs, linked below.
 
-The desktop app authenticates once with the user's normal WordPress credentials. The plugin exchanges them for a LinkFlow-only device token. The raw token is stored in Windows Credential Manager; WordPress stores only its SHA-256 hash.
-
-The account dropdown (both clients) shows the signed-in user's email under their display name, so accounts sharing a display name (e.g. duplicate test accounts) can still be told apart.
-
-## Cloud write contract
-
-Client changes are cached locally immediately and, after an 800 ms debounce, sent to:
-
-```text
-POST /wp-json/linkflow/v1/workspace
-X-LinkFlow-Token: <device token>
-X-LinkFlow-Version: <current version>
-Content-Type: application/json
-```
-
-The server sanitizes the complete workspace, saves it under the authenticated WordPress user, increments its version, and records a recoverable revision. `GET /workspace` loads the current cloud copy. The expected-version header prevents silent overwrites from another device.
-
-The 0.4.5/0.1.2 diagnostic release adds an always-visible, persistent synchronization console. It correlates client and server activity with request IDs and records authentication mode, local-cache changes, workspace fingerprints, debounce decisions, HTTP status/headers/body, server database versions, and write results. Passwords, tokens, authorization headers, nonces, and secrets are redacted. At this stage the cloud workspace is pulled during client initialization; continuous downward polling is not yet active and is intentionally called out by the diagnostics.
-
-## Theming
-
-All colors and fonts are CSS custom properties (`--bg-surface`, `--text-main`, `--font-heading`, `--font-body`, etc.), mapped into Tailwind v4's `@theme` block so utility classes stay theme-responsive. Hardcoded `slate-*`/`font-sans` classes are not permitted outside `index.css` itself. Font pairs (heading font + separate body font, loaded live from Google Fonts) and accent color presets are both curated from established sources — see `linkflow-dashboard/src/data/fontPairs.ts` and `accentColors.ts` — not picked arbitrarily.
-
-## Daily inspiration
-
-An optional bubble on the Dashboard shows a daily motivational quote or Bible verse, user-toggleable (Quote / Verse / Off, cycled by clicking the bubble). Both feeds are fetched server-side by the WordPress plugin (`GET /wp-json/linkflow/v1/daily-inspiration?type=quote|verse`), cached per day, and never called directly from the browser:
-
-- **Quote:** [ZenQuotes](https://zenquotes.io/), no key required.
-- **Verse:** the official YouVersion Verse of the Day, if a free YouVersion Platform app key is set under **Settings → LinkFlow** in wp-admin; otherwise falls back automatically to a curated reference list resolved against [bible-api.com](https://bible-api.com/) (also no key required).
-
-## Virtual pet
-
-An optional animated cat (desktop and hosted web, since it's shared React code) wanders the Dashboard, idles, climbs onto/off section cards, and can be dragged and dropped — ported into `linkflow-dashboard/src/cat/` from the standalone [`linkflow-cat-companion`](https://github.com/vincentrathbone-web/linkflow-cat-companion) prototype (private repo, own development history). Pure SVG, no image assets. Called "Virtual Pet" in the UI (the code keeps the internal `cat`/`Cat` naming). Two toggles, same state: a quick switch at the top of the Theme dropdown, and one in Settings → Workspace Preferences. Per-device, defaults on. Shipped in desktop 0.1.10 — see the desktop README's changelog.
-
-## To-do list & timesheet
-
-Two side panels flank the Dashboard on wide screens (`lg:` and up): a to-do list (left, grouped Today/This Week, optional priority and due date) and a timesheet (right, "Timer Started"/"Timer Stopped" start/stop clock with a live timer, a today's-hours progress bar, and today's session log). Both are per-user and cloud-synced — they ride the existing `workspace` document (`todos`/`timesheet` fields) and its 800 ms debounce/version/revision machinery, not a separate table or endpoint. Single-user only; there is no assignment/sharing between accounts. The weekly hours target (used to derive today's target, ÷5) is editable in Settings → Workspace Preferences. See `linkflow-dashboard/src/components/TodoPanel.tsx`, `TimesheetPanel.tsx`, `AddTaskModal.tsx`, and `sanitize_workspace()` in the plugin. **Deployed and confirmed working live** (plugin 0.4.30, desktop 0.1.11) — a real authenticated save/load round-trip, drag/resize, and the widgets rendering correctly on both desktop and the hosted page have all been confirmed by hand as of 2026-08-19. See HANDOVER.md for the one data-loss bug found and fixed along the way (an older client's save could silently wipe these fields for a newer client on the same account — fixed in 0.4.30).
-
-Clocking out also prompts for a short description of what was worked on (`LogActivityModal.tsx`, skippable) — the session's end time is captured the instant Stop is pressed, so the prompt can't affect the recorded duration. "Today's sessions" shows that description as the main line (with duration alongside it) and the start–end time range on a smaller line below. A "+ Add time entry" button (`ManualTimeEntryModal.tsx`) covers a forgotten Start/Stop: activity plus start/end times, with duration always derived from those rather than typed separately. A right-aligned "Copy" button on the "Today's sessions" line copies the day's sessions to the clipboard as both a tab-separated table (pastes into Excel/Sheets as columns) and an HTML table (pastes into email/Word as a formatted grid) in one `ClipboardItem` write. **Deployed and confirmed working by hand** — the `activity` field, manual entries, the Today progress bar, the wording change, and the Copy button have all been tested live and confirmed working (see HANDOVER.md).
-
-Both panels are also draggable/resizable, confirmed working live in the browser: a hover-revealed grip moves a widget between the left/right columns or reorders it within one, and a bottom-edge handle resizes its height only (never width) snapped to a fixed row grid, so widgets can never overlap each other or clip the center links block (which never moves — it's a separate flex sibling, structurally untouched by any of this). Layout (which column, stack order, height) is a third cloud-synced field (`panelLayout`), deployed the same time as `todos`/`timesheet` above. The drag interaction is a fresh, self-contained implementation that mirrors the *technique* used by the link-sort kanban board (`linkflow-dashboard/src/components/onboarding/SortBoard.tsx`) — hand-rolled Pointer Events, a layout snapshot taken once at pickup, velocity-derived tilt, and a Web Animations API landing tween — rather than a shared refactor of that already-shipped component. See `linkflow-dashboard/src/components/widgets/WidgetGrid.tsx`/`WidgetShell.tsx`.
-
-## In-app updates
-
-The desktop client checks for updates via `@tauri-apps/plugin-updater` against `https://controll.co.za/wp-json/linkflow/v1/desktop/latest-release`, which the WordPress plugin backs with a server-side, authenticated proxy to the (private) GitHub Releases API — see `LinkFlow_Updates` in the plugin and `UpdateBanner.tsx` on the client. The GitHub token lives only in a WordPress option (Settings → LinkFlow), never on the client. **Verified working end-to-end on 2026-08-02** (0.1.8 → 0.1.9). Publishing a new release requires the release's `-setup.exe` and matching `-setup.exe.sig` (signed with the key in `~/.linkflow-updater-keys/` on this workstation) as GitHub Release assets — and remember the proxy's 30-minute release cache, which delays a freshly published release from being seen (`wp transient delete linkflow_latest_github_release` to force it).
-
-## Build and package
-
-From `linkflow-dashboard/`:
+## Getting started
 
 ```powershell
+cd linkflow-dashboard
 npm install
-npm run lint
-npm run build:desktop
-npm run tauri:dev
+npm run lint            # tsc --noEmit — the only "test" in this repo
+npm run tauri:dev       # desktop dev shell
 ```
 
-From the workspace root, build the WordPress release ZIP:
+Build a signed Windows installer:
+
+```powershell
+npx tauri build --target x86_64-pc-windows-msvc
+```
+
+Package a WordPress release ZIP (from the workspace root):
 
 ```powershell
 .\package.ps1
 ```
 
-The plugin slug and version come from `wordpress-plugin/linkflow-dashboard/package.json`. Upload the versioned release ZIP, `dist/linkflow-dashboard-vX.Y.Z.zip`, to WordPress. Its filename identifies the release, while the packager requires exactly one unversioned `linkflow-dashboard/` root, forward-slash ZIP paths, and the canonical `linkflow-dashboard/linkflow-dashboard.php` main file.
+`package.ps1` bumps the plugin's patch version, rewrites it everywhere it needs to appear, builds the frontend assets, and writes a validated `dist/linkflow-dashboard-vX.Y.Z.zip` — see [`AGENTS.md`](./AGENTS.md) for the release contract it enforces.
 
-See [HANDOVER.md](./HANDOVER.md) for architecture, release instructions, operational notes, and lessons learned. See [block-elementor.md](./block-elementor.md) for the general, project-agnostic writeup of every WordPress/Elementor-hosted-page isolation bug fixed here (font/icon loading, native-control style bleed, the WP-admin-bar viewport-height trap, and the CSS-cascade-layers `!important` gotcha) — reusable checklist for embedding any JS app in a WordPress page.
+## Documentation
+
+| Doc | What's in it |
+| --- | --- |
+| [`HANDOVER.md`](./HANDOVER.md) | The full project history — every feature, every bug, every lesson learned, in detail |
+| [`AGENTS.md`](./AGENTS.md) | Binding product/release rules (private-only, versioning discipline, deployment order) |
+| [`linkflow-dashboard/README.md`](./linkflow-dashboard/README.md) | Desktop client changelog and architecture |
+| [`wordpress-plugin/linkflow-dashboard/README.md`](./wordpress-plugin/linkflow-dashboard/README.md) | Plugin changelog, REST API, and workspace schema |
+| [`block-elementor.md`](./block-elementor.md) | A project-agnostic guide to embedding any JS app inside a WordPress/Elementor page cleanly |
 
 ## Release discipline
 
-Every release must update the applicable version declarations and these documentation files:
+Every release updates the applicable version declarations and documentation:
 
-- `README.md`
+- `README.md` (this file)
 - `linkflow-dashboard/README.md`
 - `wordpress-plugin/linkflow-dashboard/README.md`
 - `HANDOVER.md`
-- `AGENTS.md` when process or architectural rules change
-- `block-elementor.md` when a new general WordPress/Elementor-embedding lesson is learned (keep it project-agnostic; project-specific detail belongs in the plugin README/HANDOVER instead)
+- `AGENTS.md`, when a product boundary or release process changes
+- `block-elementor.md`, when a new general WordPress/Elementor-embedding lesson is learned
+
+<div align="center">
+
+Private repository — no public workspaces, shared tabs, or anonymous endpoints.
+
+</div>
