@@ -67,8 +67,12 @@ export interface TimesheetSession {
 }
 
 export interface TimesheetState {
-  /** ISO datetime the clock was started; null when clocked out. Elapsed time is always computed from this, never stored as a running counter. */
+  /** ISO datetime the current run segment started; null while idle or paused. Elapsed time for the segment is always computed from this, never stored as a running counter. */
   currentSessionStart: string | null;
+  /** ISO datetime the in-progress session was first started (survives pause/resume); null once idle. Becomes a logged session's `start` on Stop. */
+  sessionStartedAt: string | null;
+  /** Elapsed ms banked from earlier run segments of the in-progress session, i.e. time accumulated before the most recent pause. Reset to 0 on Stop. */
+  pausedElapsedMs: number;
   sessions: TimesheetSession[];
   /** Hours per week, used for the weekly progress bar. */
   weeklyTargetHours: number;

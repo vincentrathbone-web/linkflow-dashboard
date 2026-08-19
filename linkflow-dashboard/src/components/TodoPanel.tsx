@@ -122,7 +122,7 @@ export const TodoPanel: React.FC<TodoPanelProps> = ({ todos, onToggleDone, onOpe
   const progress = todos.length > 0 ? Math.round((doneCount / todos.length) * 100) : 0;
 
   return (
-    <div className="glass-card rounded-xl p-4">
+    <div data-tour="todo-panel" className="glass-card rounded-xl p-4">
       <div className="flex items-center gap-2.5 mb-3">
         <div className="w-8 h-8 rounded-lg bg-surface-subtle border border-border-subtle flex items-center justify-center text-text-muted">
           <ChecklistIcon />
@@ -168,6 +168,7 @@ export const TodoPanel: React.FC<TodoPanelProps> = ({ todos, onToggleDone, onOpe
       )}
 
       <button
+        data-tour="todo-add-task"
         type="button"
         onClick={onOpenAddTask}
         className="w-full py-2 rounded-lg border border-dashed border-border-main hover:border-border-focus text-text-muted hover:text-text-main transition-colors flex items-center justify-center gap-1.5 text-xs font-semibold"

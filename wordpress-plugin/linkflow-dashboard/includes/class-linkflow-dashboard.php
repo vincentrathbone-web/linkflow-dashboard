@@ -1329,8 +1329,34 @@ class LinkFlow_Dashboard {
 		if ( ! empty( $raw_timesheet['currentSessionStart'] ) && preg_match( $iso_datetime_pattern, (string) $raw_timesheet['currentSessionStart'] ) ) {
 			$current_session_start = sanitize_text_field( $raw_timesheet['currentSessionStart'] );
 		}
+
+		// sessionStartedAt/pausedElapsedMs (added for the pause/resume timer)
+		// follow the same "missing falls back to what was previously stored"
+		// rule as the top-level todos/timesheet/panelLayout fields above — an
+		// older desktop client that predates pausing would otherwise send a
+		// timesheet object without these two keys at all on its very next
+		// unrelated save, silently discarding a paused-but-not-yet-logged
+		// session on a newer client sharing the same account.
+		$session_started_at = null;
+		if ( array_key_exists( 'sessionStartedAt', $raw_timesheet ) ) {
+			if ( ! empty( $raw_timesheet['sessionStartedAt'] ) && preg_match( $iso_datetime_pattern, (string) $raw_timesheet['sessionStartedAt'] ) ) {
+				$session_started_at = sanitize_text_field( $raw_timesheet['sessionStartedAt'] );
+			}
+		} elseif ( ! empty( $previous_timesheet['sessionStartedAt'] ) ) {
+			$session_started_at = sanitize_text_field( $previous_timesheet['sessionStartedAt'] );
+		}
+
+		$paused_elapsed_ms = 0;
+		if ( array_key_exists( 'pausedElapsedMs', $raw_timesheet ) ) {
+			$paused_elapsed_ms = max( 0, isset( $raw_timesheet['pausedElapsedMs'] ) ? (int) $raw_timesheet['pausedElapsedMs'] : 0 );
+		} elseif ( isset( $previous_timesheet['pausedElapsedMs'] ) ) {
+			$paused_elapsed_ms = max( 0, (int) $previous_timesheet['pausedElapsedMs'] );
+		}
+
 		$timesheet = array(
 			'currentSessionStart' => $current_session_start,
+			'sessionStartedAt'    => $session_started_at,
+			'pausedElapsedMs'     => $paused_elapsed_ms,
 			'sessions'            => $sessions,
 			'weeklyTargetHours'   => min( 168, max( 0, isset( $raw_timesheet['weeklyTargetHours'] ) ? (float) $raw_timesheet['weeklyTargetHours'] : 40 ) ),
 		);

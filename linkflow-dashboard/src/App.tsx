@@ -17,7 +17,7 @@ import {
   INITIAL_LINKS,
 } from './data/initialData';
 import { buildGoogleFontsUrl, getFontPair } from './data/fontPairs';
-import { formatElapsed } from './lib/time';
+import { formatElapsed, getTimerPhase, getLiveElapsedMs } from './lib/time';
 import { TopNavBar } from './components/TopNavBar';
 import { DashboardView } from './components/DashboardView';
 import { CollectionsView } from './components/CollectionsView';
@@ -58,7 +58,7 @@ function markOnboardingComplete(userId: number): void {
 // every release. Stored per-account (mirrors ONBOARDING_KEY's own pattern)
 // so a second account signing in on this device isn't skipped just because
 // a different account already saw this version's tour.
-const WHATS_NEW_VERSION = '2026-08-19-timer-widget';
+const WHATS_NEW_VERSION = '2026-08-19-timer-widget-v2';
 const WHATS_NEW_KEY = 'linkflow_whatsnew_seen_version';
 
 function hasSeenWhatsNew(userId: number): boolean {
@@ -300,12 +300,6 @@ export default function App() {
       return DEFAULT_TIMESHEET;
     }
   });
-  // Lets the once-subscribed timer-toggle event listener (see below) always
-  // read the latest currentSessionStart without needing to resubscribe.
-  const currentSessionStartRef = useRef(timesheet.currentSessionStart);
-  useEffect(() => {
-    currentSessionStartRef.current = timesheet.currentSessionStart;
-  }, [timesheet.currentSessionStart]);
 
   // LocalStorage Persistence - Panel Layout
   const [panelLayout, setPanelLayout] = useState<PanelLayoutState>(() => {
@@ -803,27 +797,48 @@ export default function App() {
     setTodos((prev) => prev.filter((todo) => todo.id !== id));
   };
 
-  // Timesheet Handlers
-  const handleStartClock = () => {
-    setTimesheet((prev) =>
-      prev.currentSessionStart ? prev : { ...prev, currentSessionStart: new Date().toISOString() }
-    );
+  // Timesheet handlers. The button has one short-press action and one
+  // long-press (hold-to-stop) action; a short press means "start" when idle,
+  // "resume" when paused, and "pause" when running — decided here in one
+  // atomic functional update rather than as separate exposed actions, so a
+  // rapid double-press can never race itself into an inconsistent state.
+  const handleTimerShortPress = () => {
+    setTimesheet((prev) => {
+      if (prev.currentSessionStart) {
+        // Running -> pause: bank this run segment's elapsed time and stop
+        // ticking, but keep sessionStartedAt so the session can still be
+        // resumed or later finalized by a long-press.
+        const bankedMs = (prev.pausedElapsedMs || 0) + (Date.now() - Date.parse(prev.currentSessionStart));
+        return { ...prev, currentSessionStart: null, pausedElapsedMs: bankedMs };
+      }
+      // Idle or paused -> start/resume. sessionStartedAt is set once, on the
+      // very first start, and left untouched across any later pause/resume —
+      // it becomes the logged session's `start` time on Stop.
+      const nowIso = new Date().toISOString();
+      return { ...prev, currentSessionStart: nowIso, sessionStartedAt: prev.sessionStartedAt ?? nowIso };
+    });
   };
 
-  const handleStopClock = () => {
+  // Long-press completion: finalizes and logs the session, whether it was
+  // actively running or paused at the moment the hold finished — a paused
+  // session still has time worth logging, not just a running one.
+  const handleTimerHoldComplete = () => {
     const newSessionId = 'session-' + Date.now();
     let didStop = false;
     setTimesheet((prev) => {
-      if (!prev.currentSessionStart) return prev;
+      if (!prev.sessionStartedAt) return prev;
       didStop = true;
       const end = new Date().toISOString();
-      const durationSeconds = Math.round((Date.parse(end) - Date.parse(prev.currentSessionStart)) / 1000);
+      const liveSegmentMs = prev.currentSessionStart ? Date.parse(end) - Date.parse(prev.currentSessionStart) : 0;
+      const durationSeconds = Math.round(((prev.pausedElapsedMs || 0) + liveSegmentMs) / 1000);
       return {
         ...prev,
         currentSessionStart: null,
+        sessionStartedAt: null,
+        pausedElapsedMs: 0,
         sessions: [
           ...prev.sessions,
-          { id: newSessionId, start: prev.currentSessionStart, end, durationSeconds },
+          { id: newSessionId, start: prev.sessionStartedAt, end, durationSeconds },
         ],
       };
     });
@@ -859,76 +874,86 @@ export default function App() {
     );
   }, [trayTimerEnabled]);
 
-  // Broadcasts the running/stopped state to the floating widget window (which
-  // has no access to this component's React state) and answers its "I just
-  // opened, what's the current state?" ping — the widget then computes its own
-  // live elapsed time locally from this one value, the same way
-  // TimesheetPanel.tsx already does, rather than needing a per-second event.
+  // Broadcasts the running/paused/idle state to the floating widget window
+  // (which has no access to this component's React state) and answers its
+  // "I just opened, what's the current state?" ping — the widget then
+  // computes its own live elapsed time and phase locally from these values,
+  // the same way TimesheetPanel.tsx already does, rather than needing a
+  // per-second event.
   useEffect(() => {
     if (!isDesktopApp()) return undefined;
     let unlistenReady: (() => void) | undefined;
     void (async () => {
       const { emit, listen } = await import('@tauri-apps/api/event');
-      const broadcast = () => void emit('linkflow://timesheet-state', { currentSessionStart: timesheet.currentSessionStart });
+      const broadcast = () =>
+        void emit('linkflow://timesheet-state', {
+          currentSessionStart: timesheet.currentSessionStart,
+          sessionStartedAt: timesheet.sessionStartedAt,
+          pausedElapsedMs: timesheet.pausedElapsedMs,
+        });
       broadcast();
       unlistenReady = await listen('linkflow://timer-widget-ready', broadcast);
     })();
     return () => unlistenReady?.();
-  }, [timesheet.currentSessionStart]);
+  }, [timesheet.currentSessionStart, timesheet.sessionStartedAt, timesheet.pausedElapsedMs]);
 
-  // Both the floating widget's button and the tray menu's "Start/Stop Clock"
-  // item toggle the clock via this one event, regardless of which surface sent
-  // it — subscribed once for the app's lifetime, so a ref (rather than the
-  // `timesheet` state itself) tracks the latest currentSessionStart for it to
-  // read without needing to resubscribe on every Start/Stop.
+  // The floating widget's short press, the tray's short click, and the tray
+  // menu's "Start / Pause Clock" item all funnel into this one event —
+  // `handleTimerShortPress` itself decides start/resume/pause from the
+  // current state, so this listener (subscribed once for the app's
+  // lifetime) never needs to read state itself.
   useEffect(() => {
     if (!isDesktopApp()) return undefined;
-    let unlisten: (() => void) | undefined;
+    let unlistenToggle: (() => void) | undefined;
+    let unlistenStop: (() => void) | undefined;
     void (async () => {
       const { listen } = await import('@tauri-apps/api/event');
-      unlisten = await listen('linkflow://timer-toggle', () => {
-        if (currentSessionStartRef.current) {
-          handleStopClock();
-        } else {
-          handleStartClock();
-        }
-      });
+      unlistenToggle = await listen('linkflow://timer-toggle', handleTimerShortPress);
+      unlistenStop = await listen('linkflow://timer-stop', handleTimerHoldComplete);
     })();
-    return () => unlisten?.();
+    return () => {
+      unlistenToggle?.();
+      unlistenStop?.();
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Pushes the live elapsed time into the tray icon's tooltip once a second
-  // while the clock is running and the tray timer is enabled — matches the
-  // same tick TimesheetPanel.tsx already runs for its own display, just also
-  // forwarded to Rust since the tray has no view of React state on its own.
+  // while a session is running or paused and the tray timer is enabled —
+  // matches the same tick TimesheetPanel.tsx already runs for its own
+  // display, just also forwarded to Rust since the tray has no view of React
+  // state on its own.
   useEffect(() => {
     if (!isDesktopApp() || !trayTimerEnabled) return undefined;
 
     const pushTooltip = (text: string) =>
       void import('@tauri-apps/api/core').then(({ invoke }) => invoke('set_tray_tooltip', { text }).catch(() => {}));
 
-    if (!timesheet.currentSessionStart) {
+    const phase = getTimerPhase(timesheet);
+    if (phase === 'idle') {
       pushTooltip('LinkFlow — clocked out');
       return undefined;
     }
 
-    const start = timesheet.currentSessionStart;
-    const tick = () => pushTooltip(`LinkFlow — ${formatElapsed(Date.now() - Date.parse(start))}`);
+    const tick = () => {
+      const label = formatElapsed(getLiveElapsedMs(timesheet, Date.now()));
+      pushTooltip(`LinkFlow — ${phase === 'paused' ? 'paused' : 'running'} — ${label}`);
+    };
     tick();
+    if (phase !== 'running') return undefined;
     const interval = window.setInterval(tick, 1000);
     return () => window.clearInterval(interval);
-  }, [trayTimerEnabled, timesheet.currentSessionStart]);
+  }, [trayTimerEnabled, timesheet]);
 
-  // Swaps the tray icon itself between the blue-play and red-stop glyph, drawn
-  // natively in Rust (see tray_icon_image() in lib.rs) — only on Start/Stop
+  // Swaps the tray icon itself between the green/blue/black glyphs, drawn
+  // natively in Rust (see tray_icon_image() in lib.rs) — only on phase
   // transitions, not every tick, since the icon doesn't show elapsed time.
   useEffect(() => {
     if (!isDesktopApp() || !trayTimerEnabled) return;
     void import('@tauri-apps/api/core').then(({ invoke }) =>
-      invoke('set_tray_running', { running: timesheet.currentSessionStart !== null }).catch(() => {})
+      invoke('set_tray_phase', { phase: getTimerPhase(timesheet) }).catch(() => {})
     );
-  }, [trayTimerEnabled, timesheet.currentSessionStart]);
+  }, [trayTimerEnabled, timesheet]);
 
   const handleAddManualSession = (entry: { activity: string; start: string; end: string; durationSeconds: number }) => {
     setTimesheet((prev) => ({
@@ -1022,17 +1047,47 @@ export default function App() {
         background: 'radial-gradient(circle at 50% 0%, #f8fafc 0%, #f1f5f9 60%, #e2e8f0 100%)',
       };
 
-  // Points at the real controls introduced by the 2026-08-19 timer-widget
-  // batch. The tray icon and the floating widget window are themselves
-  // outside the DOM (a system tray icon, a second OS window) — there's
-  // nothing on screen to point a callout at directly — so instead the tour
-  // opens Settings itself and points at the two toggles that turn them on.
-  // Both toggle steps open Settings on `onEnter` (harmless if it's already
-  // open) so the tour still lands correctly even if a step is auto-skipped;
-  // only the *second* toggle step closes it again on `onExit`, once the
-  // tour is done with the modal — closing on every step would flash the
-  // modal shut and back open between them.
+  // Walks new users through the whole recent Dashboard-panel batch in a
+  // deliberate order: introduce each panel as a whole first, then its most
+  // load-bearing control, before moving on to the next panel — rather than
+  // jumping straight to controls with no framing. Steps 5-6 (desktop-only)
+  // then cover the newer timer-widget/tray-icon Settings toggles, which need
+  // Settings opened first since neither has an on-screen element of its own
+  // to point at (a system tray icon and a second OS window are both outside
+  // the DOM). Both toggle steps open Settings on `onEnter` (harmless if
+  // already open, so the tour still lands correctly even if a step is
+  // auto-skipped); only the *second* toggle step closes it again on
+  // `onExit` — closing on every step would flash the modal shut and back
+  // open between them.
   const whatsNewSteps: TourStep[] = [
+    {
+      id: 'timesheet-panel-intro',
+      selector: '[data-tour="timesheet-panel"]',
+      title: 'Track your time',
+      body: 'The Timesheet panel logs a start/stop clock for your day, with a running progress bar against your weekly target.',
+      onEnter: () => setActiveTab('dashboard'),
+    },
+    {
+      id: 'timesheet-start-stop',
+      selector: '[data-tour="timesheet-start-stop"]',
+      title: 'Start or stop the clock',
+      body: 'Press here to start timing, and again to stop and log the session. You can also add or edit an entry by hand.',
+      onEnter: () => setActiveTab('dashboard'),
+    },
+    {
+      id: 'todo-panel-intro',
+      selector: '[data-tour="todo-panel"]',
+      title: 'Keep a running task list',
+      body: 'The To-Do List panel groups your tasks into Today and This Week, with optional priority flags and due dates.',
+      onEnter: () => setActiveTab('dashboard'),
+    },
+    {
+      id: 'todo-add-task',
+      selector: '[data-tour="todo-add-task"]',
+      title: 'Add a task',
+      body: 'Add a new task here any time — set a priority or due date if you like, or leave them off for a simple checklist item.',
+      onEnter: () => setActiveTab('dashboard'),
+    },
     ...(isDesktopApp()
       ? [
           {
@@ -1052,13 +1107,6 @@ export default function App() {
           },
         ]
       : []),
-    {
-      id: 'session-edit-delete',
-      selector: '[data-tour="timesheet-panel"]',
-      title: 'Fix or remove a logged session',
-      body: "Hover any entry in Today's sessions to edit its details or delete it — no need to start over on a mistake or a test run.",
-      onEnter: () => setActiveTab('dashboard'),
-    },
   ];
 
   if (isRestoringDesktopSession) {
@@ -1259,8 +1307,8 @@ export default function App() {
                 ) : (
                   <TimesheetPanel
                     timesheet={timesheet}
-                    onStartClock={handleStartClock}
-                    onStopClock={handleStopClock}
+                    onShortPress={handleTimerShortPress}
+                    onHoldComplete={handleTimerHoldComplete}
                     onOpenManualEntry={() => {
                       setEditingSession(null);
                       setIsManualEntryOpen(true);

@@ -1,8 +1,22 @@
+use std::sync::Mutex;
+use std::time::{Duration, Instant};
 use tauri::{
   menu::{Menu, MenuItem, PredefinedMenuItem},
   tray::{MouseButton, MouseButtonState, TrayIcon, TrayIconBuilder, TrayIconEvent},
   Emitter, Manager,
 };
+
+/// 1.5s, matching HOLD_TO_STOP_MS in src/lib/time.ts — keep in sync.
+const TRAY_HOLD_TO_STOP: Duration = Duration::from_millis(1500);
+
+/// Times a left-click's press-to-release duration on the tray icon, to tell
+/// a short click (toggle) apart from a hold (stop). `TrayIconEvent::Click`
+/// fires twice per physical click — once for press, once for release — but
+/// this crate's `MouseButtonState` naming is inverted from what it reads as
+/// (`Up` fires on press, `Down` on release; see its own doc comments), so the
+/// two arms below are deliberately spelled out with what they actually mean,
+/// not what the variant names suggest.
+struct TrayPressState(Mutex<Option<Instant>>);
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 #[derive(serde::Serialize, serde::Deserialize)]
@@ -66,22 +80,27 @@ fn set_tray_tooltip(app: tauri::AppHandle, text: String) -> Result<(), String> {
   app.state::<TrayHandle>().0.set_tooltip(Some(text.as_str())).map_err(|error| error.to_string())
 }
 
+// "idle"/"paused"/"running" — anything else (a future typo, a version skew
+// between JS and Rust) falls back to idle/green rather than panicking, since
+// this runs on every phase change.
 #[tauri::command]
-fn set_tray_running(app: tauri::AppHandle, running: bool) -> Result<(), String> {
-  app.state::<TrayHandle>().0.set_icon(Some(tray_icon_image(running))).map_err(|error| error.to_string())
+fn set_tray_phase(app: tauri::AppHandle, phase: String) -> Result<(), String> {
+  app.state::<TrayHandle>().0.set_icon(Some(tray_icon_image(phase.as_str()))).map_err(|error| error.to_string())
 }
 
-/// Draws the tray icon itself, in code — a solid circle (blue when stopped,
-/// ready to press play; red when running, ready to press stop) with a white
-/// play/stop glyph, matching the floating widget's button exactly. No PNG
-/// asset needed: `tauri::image::Image` accepts a raw RGBA buffer directly.
-fn tray_icon_image(running: bool) -> tauri::image::Image<'static> {
+/// Draws the tray icon itself, in code — a solid circle with a white glyph,
+/// matching the floating widget's button colors: green + play triangle when
+/// idle or paused (click to start/resume), blue + pause bars when running
+/// (click to pause). No PNG asset needed: `tauri::image::Image` accepts a
+/// raw RGBA buffer directly.
+fn tray_icon_image(phase: &str) -> tauri::image::Image<'static> {
   const SIZE: u32 = 32;
   const CENTER: f32 = SIZE as f32 / 2.0;
   const RADIUS: f32 = CENTER - 1.0;
 
-  // Same hex values as the floating widget's Tailwind bg-danger/bg-brand tokens.
-  let (r, g, b): (u8, u8, u8) = if running { (225, 29, 72) } else { (37, 99, 235) };
+  let running = phase == "running";
+  // Same hex values as the floating widget's green/blue button colors.
+  let (r, g, b): (u8, u8, u8) = if running { (59, 130, 246) } else { (34, 197, 94) };
 
   fn edge(px: f32, py: f32, ax: f32, ay: f32, bx: f32, by: f32) -> f32 {
     (px - bx) * (ay - by) - (ax - bx) * (py - by)
@@ -95,6 +114,10 @@ fn tray_icon_image(running: bool) -> tauri::image::Image<'static> {
     !(has_neg && has_pos)
   }
   let play_triangle = ((10.0, 7.0), (23.0, 16.0), (10.0, 25.0));
+  // Two vertical bars, mirroring PauseIcon in TimerWidget.tsx/TimesheetPanel.tsx.
+  let in_pause_bars = |x: u32, y: u32| -> bool {
+    ((9..=13).contains(&x) || (18..=22).contains(&x)) && (7..=25).contains(&y)
+  };
 
   let mut buffer = vec![0u8; (SIZE * SIZE * 4) as usize];
   for y in 0..SIZE {
@@ -106,7 +129,7 @@ fn tray_icon_image(running: bool) -> tauri::image::Image<'static> {
       }
 
       let glyph_white = if running {
-        (11..=21).contains(&x) && (11..=21).contains(&y)
+        in_pause_bars(x, y)
       } else {
         in_triangle(fx, fy, play_triangle.0, play_triangle.1, play_triangle.2)
       };
@@ -128,6 +151,12 @@ pub fn run() {
       use tauri_plugin_deep_link::DeepLinkExt;
       app.deep_link().handle_cli_arguments(argv.into_iter());
       if let Some(window) = app.get_webview_window("main") {
+        // The main window is hidden, not destroyed, on close (see the
+        // CloseRequested handler in .setup() below) — show() is needed here
+        // too, not just set_focus(), or relaunching the app while it's still
+        // running in the background (tray/widget visible) would silently do
+        // nothing to a window that's still technically open but invisible.
+        let _ = window.show();
         let _ = window.set_focus();
       }
     }))
@@ -144,7 +173,7 @@ pub fn run() {
       write_text_file,
       set_tray_visible,
       set_tray_tooltip,
-      set_tray_running
+      set_tray_phase
     ])
     .setup(|app| {
       if cfg!(debug_assertions) {
@@ -159,13 +188,19 @@ pub fn run() {
       // JS reports the user's actual "Tray Icon Timer" Settings preference —
       // built once here rather than on demand since Tauri has no simple way
       // to remove a tray icon later, only to hide it.
-      let toggle_item = MenuItem::with_id(app, "toggle-timer", "Start/Stop Clock", true, None::<&str>)?;
+      let toggle_item = MenuItem::with_id(app, "toggle-timer", "Start / Pause Clock", true, None::<&str>)?;
+      // Also reachable by holding the tray icon itself for 1.5s (see
+      // on_tray_icon_event below) — kept as a menu item too since a menu
+      // click is a guaranteed-reliable fallback regardless of whether the
+      // press/release timing on the icon behaves the same on every Windows
+      // version.
+      let stop_item = MenuItem::with_id(app, "stop-timer", "Stop && Log Session", true, None::<&str>)?;
       let show_item = MenuItem::with_id(app, "show-window", "Show LinkFlow", true, None::<&str>)?;
       let quit_item = PredefinedMenuItem::quit(app, Some("Quit"))?;
-      let tray_menu = Menu::with_items(app, &[&toggle_item, &show_item, &quit_item])?;
+      let tray_menu = Menu::with_items(app, &[&toggle_item, &stop_item, &show_item, &quit_item])?;
 
       let tray_builder = TrayIconBuilder::with_id("timer-tray")
-        .icon(tray_icon_image(false))
+        .icon(tray_icon_image("idle"))
         .menu(&tray_menu)
         // On Windows, attaching a menu makes it pop on left-click too by
         // default — without this, left-click both toggled the clock (below)
@@ -176,6 +211,9 @@ pub fn run() {
           "toggle-timer" => {
             let _ = app.emit("linkflow://timer-toggle", ());
           }
+          "stop-timer" => {
+            let _ = app.emit("linkflow://timer-stop", ());
+          }
           "show-window" => {
             if let Some(window) = app.get_webview_window("main") {
               let _ = window.show();
@@ -184,17 +222,58 @@ pub fn run() {
           }
           _ => {}
         })
-        // Left-click toggles the clock directly (matching the floating widget's
-        // button); opening/showing the main window moved to the right-click
-        // menu's "Show LinkFlow" item instead.
+        // A short left-click toggles the clock (start/resume/pause), matching
+        // the floating widget's short press; holding it for 1.5s stops and
+        // logs the session instead, matching the widget's hold-to-stop. See
+        // TrayPressState's doc comment above for why the match arms below
+        // are spelled out by what they mean, not by the variant names.
         .on_tray_icon_event(|tray, event| {
-          if let TrayIconEvent::Click { button: MouseButton::Left, button_state: MouseButtonState::Up, .. } = event {
-            let _ = tray.app_handle().emit("linkflow://timer-toggle", ());
+          if let TrayIconEvent::Click { button: MouseButton::Left, button_state, .. } = event {
+            let app = tray.app_handle();
+            let press_state = app.state::<TrayPressState>();
+            match button_state {
+              MouseButtonState::Up => {
+                *press_state.0.lock().unwrap() = Some(Instant::now());
+              }
+              MouseButtonState::Down => {
+                if let Some(pressed_at) = press_state.0.lock().unwrap().take() {
+                  if pressed_at.elapsed() >= TRAY_HOLD_TO_STOP {
+                    let _ = app.emit("linkflow://timer-stop", ());
+                  } else {
+                    let _ = app.emit("linkflow://timer-toggle", ());
+                  }
+                }
+              }
+            }
           }
         });
+      // Managed before the tray is built, not after — the tray can start
+      // receiving click events the instant build() returns, and the event
+      // handler above panics if it reaches for state that isn't managed yet.
+      app.manage(TrayPressState(Mutex::new(None)));
       let tray = tray_builder.build(app)?;
       tray.set_visible(false)?;
       app.manage(TrayHandle(tray));
+
+      // Closing the main window (the "X" button) hides it instead of
+      // destroying it — "minimize to tray." Destroying it used to also kill
+      // the webview that owns every `listen()` call in App.tsx (the timer
+      // toggle/stop handlers, the widget/tray state broadcast, etc.), so
+      // once closed, the still-visible floating widget and tray icon would
+      // silently stop responding to anything — and since the window object
+      // itself was gone, relaunching the app (caught by the single-instance
+      // plugin above) had nothing left to show or focus. Quitting for real
+      // is still available via the tray menu's "Quit" item, which uses
+      // Tauri's `PredefinedMenuItem::quit` and isn't affected by this.
+      if let Some(main_window) = app.get_webview_window("main") {
+        let window_to_hide = main_window.clone();
+        main_window.on_window_event(move |event| {
+          if let tauri::WindowEvent::CloseRequested { api, .. } = event {
+            api.prevent_close();
+            let _ = window_to_hide.hide();
+          }
+        });
+      }
 
       Ok(())
     })

@@ -1,15 +1,26 @@
 import React, { useEffect, useState } from 'react';
 import { TimesheetSession, TimesheetState } from '../types';
-import { formatElapsed } from '../lib/time';
+import { formatElapsed, getLiveElapsedMs, getTimerPhase, TimerPhase } from '../lib/time';
+import { useHoldToStop } from '../lib/useHoldToStop';
 
 interface TimesheetPanelProps {
   timesheet: TimesheetState;
-  onStartClock: () => void;
-  onStopClock: () => void;
+  /** Short press: starts (idle), resumes (paused), or pauses (running) —
+   * which one is decided by the caller from its own current state. */
+  onShortPress: () => void;
+  /** Completing the 1.5s hold: finalizes and logs the session. */
+  onHoldComplete: () => void;
   onOpenManualEntry: () => void;
   onEditSession: (session: TimesheetSession) => void;
   onDeleteSession: (id: string) => void;
 }
+
+const PHASE_COLOR: Record<TimerPhase, string> = {
+  idle: '#22c55e',
+  paused: '#22c55e',
+  running: '#3b82f6',
+};
+const STOPPED_COLOR = '#17181c';
 
 const PlusIcon: React.FC = () => (
   <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" strokeWidth={2.4} strokeLinecap="round">
@@ -25,13 +36,20 @@ const ClockIcon: React.FC = () => (
 );
 
 const PlayIcon: React.FC = () => (
-  <svg viewBox="0 0 24 24" width="13" height="13" fill="currentColor" className="text-text-inverse">
+  <svg viewBox="0 0 24 24" width="17" height="17" fill="currentColor" className="text-text-inverse">
     <path d="M7 5l12 7-12 7V5z" />
   </svg>
 );
 
+const PauseIcon: React.FC = () => (
+  <svg viewBox="0 0 24 24" width="17" height="17" fill="currentColor" className="text-text-inverse">
+    <rect x="5.5" y="4" width="4.5" height="16" rx="1.2" />
+    <rect x="14" y="4" width="4.5" height="16" rx="1.2" />
+  </svg>
+);
+
 const StopIcon: React.FC = () => (
-  <svg viewBox="0 0 24 24" width="13" height="13" fill="currentColor" className="text-text-inverse">
+  <svg viewBox="0 0 24 24" width="17" height="17" fill="currentColor" className="text-text-inverse">
     <rect x="5" y="5" width="14" height="14" rx="2" />
   </svg>
 );
@@ -108,25 +126,32 @@ function buildSessionsClipboard(sessions: TimesheetSession[]): { text: string; h
 
 export const TimesheetPanel: React.FC<TimesheetPanelProps> = ({
   timesheet,
-  onStartClock,
-  onStopClock,
+  onShortPress,
+  onHoldComplete,
   onOpenManualEntry,
   onEditSession,
   onDeleteSession,
 }) => {
   const [now, setNow] = useState(() => Date.now());
   const [copyState, setCopyState] = useState<'idle' | 'copied' | 'error'>('idle');
-  const isRunning = timesheet.currentSessionStart !== null;
+  const phase = getTimerPhase(timesheet);
 
   // Local-only tick, purely for the live display — never written into synced
   // state, so it never touches the debounced cloud save.
   useEffect(() => {
-    if (!isRunning) return undefined;
+    if (phase !== 'running') return undefined;
     const interval = window.setInterval(() => setNow(Date.now()), 1000);
     return () => window.clearInterval(interval);
-  }, [isRunning]);
+  }, [phase]);
 
-  const liveElapsedMs = isRunning ? now - Date.parse(timesheet.currentSessionStart as string) : 0;
+  const liveElapsedMs = getLiveElapsedMs(timesheet, now);
+  const { isPressed, holdProgress, onPointerDown, onPointerUp, onPointerLeave } = useHoldToStop(
+    onShortPress,
+    onHoldComplete,
+    phase !== 'idle'
+  );
+  const isStopped = holdProgress >= 1;
+  const btnColor = isStopped ? STOPPED_COLOR : PHASE_COLOR[phase];
 
   const nowDate = new Date(now);
   const todayMs = timesheet.sessions
@@ -198,26 +223,51 @@ export const TimesheetPanel: React.FC<TimesheetPanelProps> = ({
       <div className="flex flex-col items-center gap-2.5 py-1 pb-4">
         <span
           className={`inline-flex items-center gap-1.5 text-[11px] font-bold px-2.5 py-1 rounded-full ${
-            isRunning ? 'bg-brand-subtle text-brand-text' : 'bg-surface-subtle text-text-muted'
+            phase === 'running' ? 'bg-brand-subtle text-brand-text' : 'bg-surface-subtle text-text-muted'
           }`}
         >
-          <span className={`w-1.5 h-1.5 rounded-full ${isRunning ? 'bg-brand' : 'bg-text-subtle'}`} />
-          {isRunning ? `Timer Started — ${formatTime(timesheet.currentSessionStart as string)}` : 'Timer Stopped'}
+          <span className={`w-1.5 h-1.5 rounded-full ${phase === 'running' ? 'bg-brand' : 'bg-text-subtle'}`} />
+          {phase === 'running' && `Timer Started — ${formatTime(timesheet.sessionStartedAt as string)}`}
+          {phase === 'paused' && 'Paused'}
+          {phase === 'idle' && 'Timer Stopped'}
         </span>
         <span className="font-mono text-[34px] font-bold tabular-nums text-text-main tracking-tight">
           {formatElapsed(liveElapsedMs)}
         </span>
       </div>
 
+      {/* Short press starts/resumes/pauses (whichever applies to the current
+          phase); holding for 1.5s sweeps a dark fill left-to-right and, on
+          completion, finalizes and logs the session — same interaction and
+          colors (green idle/paused, blue running, near-black on a completed
+          hold) as the floating widget, just in this panel's pill shape
+          rather than a circular puck. */}
       <button
+        data-tour="timesheet-start-stop"
         type="button"
-        onClick={isRunning ? onStopClock : onStartClock}
-        className={`w-full flex items-center justify-center gap-2 py-2.5 rounded-full text-text-inverse text-[13px] font-bold transition-colors ${
-          isRunning ? 'bg-danger hover:bg-danger/90' : 'bg-brand hover:bg-brand-hover'
-        }`}
+        onPointerDown={onPointerDown}
+        onPointerUp={onPointerUp}
+        onPointerLeave={onPointerLeave}
+        onPointerCancel={onPointerLeave}
+        aria-label={phase === 'running' ? 'Pause the clock (hold to stop)' : phase === 'paused' ? 'Resume the clock (hold to stop)' : 'Start the clock'}
+        className="relative w-full flex items-center justify-center gap-2 py-2.5 rounded-full text-text-inverse text-[13px] font-bold overflow-hidden touch-none select-none"
+        style={{ background: btnColor, transition: 'background 220ms ease, transform 120ms ease', transform: isPressed ? 'scale(0.985)' : 'scale(1)' }}
       >
-        {isRunning ? <StopIcon /> : <PlayIcon />}
-        {isRunning ? 'Stop' : 'Start'}
+        {holdProgress > 0 && (
+          <div
+            aria-hidden
+            className="absolute inset-0 pointer-events-none"
+            style={{
+              background: STOPPED_COLOR,
+              WebkitMaskImage: `linear-gradient(90deg, #000 0%, #000 calc(${Math.round(holdProgress * 100)}% - 8px), transparent calc(${Math.round(holdProgress * 100)}%), transparent 100%)`,
+              maskImage: `linear-gradient(90deg, #000 0%, #000 calc(${Math.round(holdProgress * 100)}% - 8px), transparent calc(${Math.round(holdProgress * 100)}%), transparent 100%)`,
+            }}
+          />
+        )}
+        <span className="relative z-10 flex items-center gap-2">
+          {isStopped ? <StopIcon /> : phase === 'running' ? <PauseIcon /> : <PlayIcon />}
+          {isStopped ? 'Stopped' : phase === 'running' ? 'Pause' : phase === 'paused' ? 'Resume' : 'Start'}
+        </span>
       </button>
 
       <button

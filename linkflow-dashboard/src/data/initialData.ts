@@ -17,6 +17,8 @@ export const DEFAULT_THEME: ThemeConfig = {
 
 export const DEFAULT_TIMESHEET: TimesheetState = {
   currentSessionStart: null,
+  sessionStartedAt: null,
+  pausedElapsedMs: 0,
   sessions: [],
   weeklyTargetHours: 40,
 };
