@@ -8,18 +8,20 @@ This file is a status/pending/lessons digest, not a changelog — full per-relea
 
 ## Status
 
-- Plugin **0.4.36** — live on `controll.co.za`, deployed for hands-on testing ahead of the next desktop
-  build. Frontend-only (`LinkTile.tsx`/`index.css`, shared by both clients): link tile titles/
-  descriptions wrap to a second line instead of truncating (`line-clamp-2`, `leading-tight`, `break-words`)
-  and show the full text as a native tooltip on hover. Desktop is still **0.1.23** — this change hasn't
-  been built into an installer yet; do that once the user confirms the wrapping/tooltip look right live.
-- 0.4.36 itself is a same-day fix for a regression in 0.4.35: the `--link-text-scale` font-size slider
-  scaled tile text from `transform-origin: left center` (copied from the left-aligned heading-scale
-  rule), which visibly pushed enlarged text rightward off-center instead of growing evenly, since tile
-  labels are center-aligned. Fixed to `transform-origin: center` for `.link-text-scale` only.
-- Desktop **0.1.23** / plugin **0.4.34** (superseded by 0.4.36 above) — live (GitHub Release +
-  `controll.co.za`). Adds Google avatar sync (`avatarUrl`, stored in user meta, no schema change) and a
-  fade + bouncing down-arrow overflow cue on resized Timesheet/To-Do widgets.
+- Desktop **0.1.24** / plugin **0.4.36** — both live (GitHub Release + `controll.co.za`). Link tile
+  titles/descriptions wrap to a second line instead of truncating (`line-clamp-2`, `leading-tight`,
+  `break-words`) and show the full text as a native tooltip on hover; fixes a same-day 0.4.35 regression
+  where the `--link-text-scale` font-size slider grew tile text off-center (`transform-origin: left
+  center` copied from the left-aligned heading-scale rule, wrong for these center-aligned labels — now
+  `transform-origin: center` for `.link-text-scale` only). **Not yet hands-on confirmed on desktop** —
+  the plugin side was confirmed live on the hosted page before the desktop build went out.
+- **0.1.24 shipped with a rotated updater signing key** (see Lessons below for the incident) — any
+  client on 0.1.23 or earlier needs one manual install of 0.1.24 before its auto-updater will detect
+  anything again. Confirmed via the update proxy: `current_version=0.1.23` → 200 with a valid 0.1.24
+  manifest signed under the new key.
+- Desktop **0.1.23** / plugin **0.4.34** (superseded by 0.1.24/0.4.36 above) — previously live. Added
+  Google avatar sync (`avatarUrl`, stored in user meta, no schema change) and a fade + bouncing
+  down-arrow overflow cue on resized Timesheet/To-Do widgets.
 - **Not yet hands-on confirmed:** the two 0.1.23 features above — code-complete, lint/build/PHP-lint
   clean, installer opened for the user, but not watched running.
 - Everything through 0.1.22/0.4.33 is user-confirmed working: the Play/Pause/Stop timer (widget, main
@@ -28,9 +30,9 @@ This file is a status/pending/lessons digest, not a changelog — full per-relea
 
 ## Pending / next checks
 
-- Confirm the 0.4.36 link-tile wrap/tooltip/scale fix looks right live, then build a matching desktop
-  installer (this change is currently plugin-only; the desktop exe still ships the old single-line
-  truncated titles).
+- Manually install 0.1.24 once (auto-update won't offer it to an existing 0.1.23 install — new signing
+  key, see Status above), then confirm the link-tile wrap/tooltip/scale fix looks right live in the
+  desktop app.
 - Confirm 0.1.23's Google avatar and widget-overflow-fade in the running app.
 - `npm run tauri:dev` hangs (Vite serves fine on :3000, but Rust/`cargo` never starts compiling, no
   error) — undiagnosed. The signed-build path is reliable so this hasn't blocked a release; worth a
@@ -108,6 +110,14 @@ This file is a status/pending/lessons digest, not a changelog — full per-relea
   checking that headings are left-aligned and link tiles are center-aligned — scaling from the left edge
   of a centered, shrink-to-fit box visibly grows it off-center to the right. Match the transform origin
   to how the element is actually aligned in its container, not to a rule that happened to work elsewhere.
+- **The predicted post-release key-loss scenario actually happened (2026-09-23):** the original updater
+  signing key's password was lost with no record anywhere — exactly the "breaks every installed client"
+  case flagged above, since v0.1.23 had already shipped signed with it. Generated a fresh keypair
+  (`tauri signer generate`), updated the embedded `pubkey` in `tauri.conf.json`, and shipped 0.1.24
+  signed with the new key. Net effect: any client on 0.1.23 or earlier needs one manual install; every
+  release after that auto-updates normally again. The new private key and its password are saved on the
+  maintainer's machine outside this repo (see the machine-local dev-environment notes) — never in a
+  committed file, per `.gitignore`'s `*.key` rule.
 
 ## Repository layout
 
