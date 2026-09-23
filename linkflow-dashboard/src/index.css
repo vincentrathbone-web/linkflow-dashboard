@@ -123,9 +123,12 @@
   .link-text-scale {
     /* No display override: applied to elements that already set their own
      * display (e.g. line-clamp's -webkit-box), which transform doesn't
-     * disturb. */
+     * disturb. Origin is "center" (not "left center" like the heading
+     * scale) because these titles/descriptions are center-aligned inside
+     * the link tile — scaling from the left edge would grow the text
+     * rightward off the tile's visual center instead of evenly outward. */
     transform: scale(var(--link-text-scale));
-    transform-origin: left center;
+    transform-origin: center;
   }
 }
 

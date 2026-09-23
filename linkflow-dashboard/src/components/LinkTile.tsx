@@ -128,13 +128,19 @@ export const LinkTile: React.FC<LinkTileProps> = ({
       </div>
 
       {/* Link Title */}
-      <span className="link-text-scale text-xs font-semibold text-text-main line-clamp-1 max-w-[90%] tracking-tight">
+      <span
+        title={link.name}
+        className="link-text-scale text-xs font-semibold text-text-main leading-tight line-clamp-2 break-words max-w-[90%] tracking-tight"
+      >
         {link.name}
       </span>
 
       {/* Description or Domain subtitle */}
       {link.description && (
-        <span className="link-text-scale text-[11px] text-text-muted line-clamp-1 mt-0.5 max-w-[95%] font-normal">
+        <span
+          title={link.description}
+          className="link-text-scale text-[11px] text-text-muted leading-tight line-clamp-1 mt-0.5 max-w-[95%] font-normal"
+        >
           {link.description}
         </span>
       )}

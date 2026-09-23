@@ -13,7 +13,7 @@ if (-not (Test-Path -LiteralPath $pluginPackagePath)) {
     throw "Plugin package metadata was not found at $pluginPackagePath"
 }
 
-$package = Get-Content -LiteralPath $pluginPackagePath -Raw | ConvertFrom-Json
+$package = Get-Content -LiteralPath $pluginPackagePath -Raw -Encoding UTF8 | ConvertFrom-Json
 $pluginSlug = [string]$package.name
 $currentVersion = [string]$package.version
 
@@ -34,7 +34,7 @@ else {
     $newVersion = $parts -join '.'
 }
 
-$packageJson = Get-Content -LiteralPath $pluginPackagePath -Raw
+$packageJson = Get-Content -LiteralPath $pluginPackagePath -Raw -Encoding UTF8
 $packageJson = $packageJson -replace '"version"\s*:\s*"[^"]+"', "`"version`": `"$newVersion`""
 [System.IO.File]::WriteAllText($pluginPackagePath, $packageJson, [System.Text.UTF8Encoding]::new($false))
 
@@ -43,14 +43,14 @@ if (-not (Test-Path -LiteralPath $mainPluginPath)) {
     throw "Canonical main plugin file was not found at $mainPluginPath"
 }
 
-$mainPlugin = Get-Content -LiteralPath $mainPluginPath -Raw
+$mainPlugin = Get-Content -LiteralPath $mainPluginPath -Raw -Encoding UTF8
 $mainPlugin = $mainPlugin -replace '(?m)^(\s*\*\s*Version:\s*)[\d.]+', "`${1}$newVersion"
 $mainPlugin = $mainPlugin -replace "(define\(\s*'LINKFLOW_DASHBOARD_VERSION',\s*')[^']+(')", "`${1}$newVersion`${2}"
 [System.IO.File]::WriteAllText($mainPluginPath, $mainPlugin, [System.Text.UTF8Encoding]::new($false))
 
 $pluginReadmePath = Join-Path $pluginRoot 'README.md'
 if (Test-Path -LiteralPath $pluginReadmePath) {
-    $pluginReadme = Get-Content -LiteralPath $pluginReadmePath -Raw
+    $pluginReadme = Get-Content -LiteralPath $pluginReadmePath -Raw -Encoding UTF8
     $pluginReadme = $pluginReadme -replace 'Current version: \*\*[\d.]+\*\*\.', "Current version: **$newVersion**."
     [System.IO.File]::WriteAllText($pluginReadmePath, $pluginReadme, [System.Text.UTF8Encoding]::new($false))
 }
@@ -83,7 +83,7 @@ try {
     Copy-Item -Path (Join-Path $buildStage '*') -Destination $pluginBuildRoot -Recurse -Force
 
     $manifestPath = Join-Path $buildStage '.vite\manifest.json'
-    $manifest = Get-Content -LiteralPath $manifestPath -Raw | ConvertFrom-Json
+    $manifest = Get-Content -LiteralPath $manifestPath -Raw -Encoding UTF8 | ConvertFrom-Json
     $currentAssetNames = @(
         $manifest.PSObject.Properties.Value | ForEach-Object {
             $manifestEntry = $_

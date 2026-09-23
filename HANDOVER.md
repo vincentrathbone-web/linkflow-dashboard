@@ -1,6 +1,6 @@
 # LinkFlow handover
 
-Last updated: 2026-08-19
+Last updated: 2026-09-23
 
 This file is a status/pending/lessons digest, not a changelog — full per-release detail lives in
 [`linkflow-dashboard/README.md`](./linkflow-dashboard/README.md) (desktop) and
@@ -8,9 +8,18 @@ This file is a status/pending/lessons digest, not a changelog — full per-relea
 
 ## Status
 
-- Desktop **0.1.23** / plugin **0.4.34** — live (GitHub Release + `controll.co.za`). Adds Google avatar
-  sync (`avatarUrl`, stored in user meta, no schema change) and a fade + bouncing down-arrow overflow
-  cue on resized Timesheet/To-Do widgets.
+- Plugin **0.4.36** — live on `controll.co.za`, deployed for hands-on testing ahead of the next desktop
+  build. Frontend-only (`LinkTile.tsx`/`index.css`, shared by both clients): link tile titles/
+  descriptions wrap to a second line instead of truncating (`line-clamp-2`, `leading-tight`, `break-words`)
+  and show the full text as a native tooltip on hover. Desktop is still **0.1.23** — this change hasn't
+  been built into an installer yet; do that once the user confirms the wrapping/tooltip look right live.
+- 0.4.36 itself is a same-day fix for a regression in 0.4.35: the `--link-text-scale` font-size slider
+  scaled tile text from `transform-origin: left center` (copied from the left-aligned heading-scale
+  rule), which visibly pushed enlarged text rightward off-center instead of growing evenly, since tile
+  labels are center-aligned. Fixed to `transform-origin: center` for `.link-text-scale` only.
+- Desktop **0.1.23** / plugin **0.4.34** (superseded by 0.4.36 above) — live (GitHub Release +
+  `controll.co.za`). Adds Google avatar sync (`avatarUrl`, stored in user meta, no schema change) and a
+  fade + bouncing down-arrow overflow cue on resized Timesheet/To-Do widgets.
 - **Not yet hands-on confirmed:** the two 0.1.23 features above — code-complete, lint/build/PHP-lint
   clean, installer opened for the user, but not watched running.
 - Everything through 0.1.22/0.4.33 is user-confirmed working: the Play/Pause/Stop timer (widget, main
@@ -19,6 +28,9 @@ This file is a status/pending/lessons digest, not a changelog — full per-relea
 
 ## Pending / next checks
 
+- Confirm the 0.4.36 link-tile wrap/tooltip/scale fix looks right live, then build a matching desktop
+  installer (this change is currently plugin-only; the desktop exe still ships the old single-line
+  truncated titles).
 - Confirm 0.1.23's Google avatar and widget-overflow-fade in the running app.
 - `npm run tauri:dev` hangs (Vite serves fine on :3000, but Rust/`cargo` never starts compiling, no
   error) — undiagnosed. The signed-build path is reliable so this hasn't blocked a release; worth a
@@ -51,9 +63,12 @@ This file is a status/pending/lessons digest, not a changelog — full per-relea
 3. Desktop: `npx tauri build --target x86_64-pc-windows-msvc` (force MSVC — a stray GNU toolchain
    causes `dlltool.exe` failures) → `gh release create` (retry once if the permission classifier blocks
    it) → clear the `linkflow_latest_github_release` transient → curl-verify the update proxy.
-4. Plugin, if PHP changed: `./package.ps1` → `scp` the ZIP to the server → `wp plugin install <zip>
-   --force` → verify `wp plugin list` (active/version), DB version, tables, and a still-401ing
-   `/workspace` unauthenticated.
+4. Plugin, if PHP or shared-frontend code changed: `./package.ps1` → `scp` the ZIP to the server → `wp
+   plugin install <zip> --force` → verify `wp plugin list` (active/version), DB version, tables, and a
+   still-401ing `/workspace` unauthenticated. SSH access is a local `~/.ssh/config` alias (not checked
+   into this repo — see the maintainer's machine-specific notes); an older README mention of a `linkflow`
+   alias refers to a different machine/session. Server plugin path:
+   `<home>/public_html/wp-content/plugins/linkflow-dashboard`. WP-CLI is at `/usr/local/bin/wp`.
 5. Commit and push to `master` (direct commits, no PR — established repo convention).
 6. Update this file, both component READMEs, and root `README.md`.
 
@@ -82,6 +97,17 @@ This file is a status/pending/lessons digest, not a changelog — full per-relea
   on this project — drag hit-testing, tray click routing, event-timing races, CSS isolation. Every one
   was found by the user running the real build by hand. Don't report a UI/interaction change as done
   until it's been exercised live.
+- **PowerShell encoding:** `package.ps1`'s version-bump step read `README.md` with `Get-Content -Raw`
+  and no explicit `-Encoding`. Windows PowerShell 5.1 defaults a BOM-less UTF-8 file to the system ANSI
+  codepage on that call, so every em dash/smart quote in the file got mangled into mojibake on write-back
+  the first time this was run in this environment (2026-09-23, packaging 0.4.35). Fixed by adding
+  `-Encoding UTF8` to every `Get-Content -Raw` call in the script. Always diff a script-touched doc file
+  before committing — a successful packaging run is not proof the file it rewrote is still intact.
+- **CSS transform-origin depends on alignment, not just element type:** `.link-text-scale`'s font-size
+  slider (`index.css`) copied `transform-origin: left center` from the heading-scale rule without
+  checking that headings are left-aligned and link tiles are center-aligned — scaling from the left edge
+  of a centered, shrink-to-fit box visibly grows it off-center to the right. Match the transform origin
+  to how the element is actually aligned in its container, not to a rule that happened to work elsewhere.
 
 ## Repository layout
 

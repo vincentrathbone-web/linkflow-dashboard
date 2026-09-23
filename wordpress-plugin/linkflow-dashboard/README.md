@@ -1,6 +1,6 @@
 # LinkFlow Dashboard WordPress Plugin
 
-Current version: **0.4.34**, live on `controll.co.za`.
+Current version: **0.4.36**, live on `controll.co.za`.
 
 LinkFlow provides a closed, authenticated cloud workspace for the hosted React interface and Windows desktop client. Each WordPress user has an isolated workspace and up to 20 recoverable revisions. There are no public or shared workspace endpoints.
 
@@ -66,6 +66,10 @@ Run `./package.ps1` from the workspace root. It reads the slug/version from this
 This is the canonical plugin changelog. The desktop client keeps its own in
 [`linkflow-dashboard/README.md`](../../linkflow-dashboard/README.md); where a plugin release shipped
 alongside a desktop release, the pairing is noted here.
+
+### 2026-09-23
+
+- **0.4.35 / 0.4.36:** Frontend-only fix, no PHP changes — link tile titles/descriptions now wrap onto a second line (`line-clamp-2` with `break-words`, `leading-tight`) instead of truncating to one, and show the full untruncated text as a native tooltip on hover (`title` attribute). 0.4.36 followed immediately to fix a regression 0.4.35 introduced: the `--link-text-scale` font-size slider (`index.css`'s `.link-text-scale`) scaled from `transform-origin: left center`, which is correct for the left-aligned heading-scale rule it was copied from but wrong for these center-aligned tile labels — enlarging the text visibly pushed it rightward off-center instead of growing evenly. Changed to `transform-origin: center` for `.link-text-scale` only (it is used exclusively by the tile title/description, both center-aligned; the heading rule is untouched). Deployed via `wp plugin install <zip> --force` over SSH; confirmed post-deploy `wp plugin list` shows `active 0.4.36`, and `GET /workspace` still 401s unauthenticated (route alive). **Lesson:** `package.ps1`'s version-bump step read `README.md` with `Get-Content -Raw` and no explicit encoding — on this machine's Windows PowerShell 5.1, that defaults a BOM-less UTF-8 file to the system ANSI codepage, silently mangling every em dash/smart quote in the file into mojibake on write-back. Fixed by adding `-Encoding UTF8` to every `Get-Content -Raw` call in the script; the corrupted README from the first 0.4.35 packaging run was discarded (`git checkout --`) before this entry was written, so no encoding damage reached this file.
 
 ### 2026-08-19 (fifth entry)
 
